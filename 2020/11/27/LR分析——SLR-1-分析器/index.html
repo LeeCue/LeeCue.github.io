@@ -1,0 +1,253 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LR分析——SLR(1)分析器 | 北枫的Blog~</title><meta name="keywords" content="LR分析,SLR(1)"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="大三课程中学习了编译原理这门课程，本文整理SLR(1)分析过程，从原理上了解语法分析过程...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LR分析——SLR(1)分析器">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="大三课程中学习了编译原理这门课程，本文整理SLR(1)分析过程，从原理上了解语法分析过程...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png">
+<meta property="article:published_time" content="2020-11-27T02:25:42.000Z">
+<meta property="article:modified_time" content="2020-11-27T02:33:55.139Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="LR分析">
+<meta property="article:tag" content="SLR(1)">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 10:33:55'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><link rel="stylesheet" href="https://unpkg.com/xiaokang-style/butterfly/css/tags.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">LR分析——SLR(1)分析器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T02:25:42.000Z" title="发表于 2020-11-27 10:25:42">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T02:33:55.139Z" title="更新于 2020-11-27 10:33:55">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86/">编译原理</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86/LR%E5%88%86%E6%9E%90/">LR分析</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>8分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="SLR-1-分析"><a href="#SLR-1-分析" class="headerlink" title="SLR(1) 分析"></a>SLR(1) 分析</h2><p>&emsp;&emsp;SLR(1) 文法，其思想是基于容许 LR(0) 规范族中有冲突的项目集（状态），用向前查看一个符号的办法来进行处理，以解决冲突。</p>
+<h4 id="SLR-1-限定要求"><a href="#SLR-1-限定要求" class="headerlink" title="SLR(1) 限定要求"></a>SLR(1) 限定要求</h4><p>&emsp;&emsp;假定一个 LR(0) 规范族中含有如下的项目集（状态）I：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I = &#123;X-&gt;α·bβ, A-&gt;γ·, B-&gt;δ·&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;也就是在该项目集中含有移进-归约冲突和归约-归约冲突。其中 α、β、γ、δ 为文法符号串，b 为终结符。那么只要在所有含有 A 或 B 的句型中，直接跟在 A 或 B 后的可能终结符的集合即 FOLLOW(A) 和 FOLLOW(B) 互不相交，且都不包含 b，也就是只要满足：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="title">FOLLOW</span><span class="params">(A)</span></span>∩FOLLOW(B)=∅</span><br><span class="line"><span class="function"><span class="title">FOLLOW</span><span class="params">(A)</span></span>∩&#123;b&#125;=∅</span><br><span class="line"><span class="function"><span class="title">FOLLOW</span><span class="params">(B)</span></span>∩&#123;b&#125;=∅</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;那么，当在状态 I 时，如果面临某输入符号为 a，则动作可按以下规定决策：</p>
+<ol>
+<li>若 a = b，则移进。</li>
+<li>若 a∈FOLLOW(A)，则用产生式 A-&gt;γ 进行归约。</li>
+<li>若 a∈FOLLOW(B)，则用产生式 B-&gt;δ 进行归约。</li>
+<li>此外，报错。</li>
+</ol>
+<p>&emsp;&emsp;通常 LR(0) 规范族的一个项目集 I 中可能含有多个移进项目和多个归约项目，可假设项目集 I（状态）中有 m 个移进项目：A<del>1</del>-&gt;α<del>1</del>·a<del>1</del>β<del>1</del>，A<del>2</del>-&gt;α<del>2</del>·a<del>2</del>β<del>2</del>，…，A<del>m</del>-&gt;α<del>m</del>·a<del>m</del>β<del>m</del>；同时含有 n 个归约项目：B<del>1</del>-&gt;γ<del>1</del>·，B<del>2</del>-&gt;γ<del>2</del>·，B<del>n</del>-&gt;γ<del>n</del>·，只要集合 {a<del>1</del>, a<del>2</del>, …, a<del>m</del>} 和 FOLLOW(B<del>1</del>)，FOLOOW(B<del>2</del>)，…，FOLLOW(B<del>n</del>) 两两交集都为空，那么仍可用上述规则解决冲突，即考查当前输入符号以决定动作。</p>
+<ol>
+<li>若 a∈{a<del>1</del>, a<del>2</del>, …, a<del>m</del>}，则移进。</li>
+<li>若 a∈FOLLOW(B<del>i</del>)，i = 1, 2, …, n，则用 B<del>i</del>-&gt;γ<del>i</del> 进行归约。</li>
+<li>此外，报错。</li>
+</ol>
+<h4 id="改进的-SLR-1-分析表的构造方法"><a href="#改进的-SLR-1-分析表的构造方法" class="headerlink" title="改进的 SLR(1) 分析表的构造方法"></a>改进的 SLR(1) 分析表的构造方法</h4><p>&emsp;&emsp;假设已构造出文法的 LR(0) 项目集规范族和计算出所有非终结符的 FOLLOW 集合。</p>
+<p>&emsp;&emsp;项目集规范族为 <code>C=&#123;I0, I1, ..., In&#125;</code>，其中 <code>Ik</code> 为项目集的名字，k 为状态名，令包含 S’-&gt;·S 项目的集合 <code>Ik</code> 的下标 k 为分析器的初始状态，求出所有非终结符的 FOLLOW 集。</p>
+<p>&emsp;&emsp;改进的 SLR(1) 分析表的动作（ACTION）表和状态转换（GOTO）表的构造步骤如下：</p>
+<ol>
+<li>若项目 A-&gt;α·aβ 属于 <code>Ik</code>，且转换函数 <code>GO(Ik, a) = Ij</code>，当 a 为终结符时，则置 ACTION[k, a] 为 Sj</li>
+<li>若项目 A-&gt;α· 属于 <code>Ik</code>，则对 a 任何终结符或者#，且满足 a∈FOLLOW(A) 时，置 ACTION[k, a] = rj，j 为产生式 A-&gt;α 在文法 G‘ 中的编号。</li>
+<li>若 <code>GO(Ik, A) = Ij</code>，则置 GOTO[k, A] = j，其中 A 为非终结符，j 为某一状态号。</li>
+<li>若项目 S’-&gt;S· 属于 <code>Ik</code>，则置 ACTION[k, #] = acc，表示接受。</li>
+<li>凡不能用上述方法填入的分析表的元素，均应填上报错标志。</li>
+</ol>
+<h4 id="SLR-1-分析器"><a href="#SLR-1-分析器" class="headerlink" title="SLR(1) 分析器"></a>SLR(1) 分析器</h4><p>&emsp;&emsp;如果对于一个文法的 LR(0) 项目集规范族的某些项目集或 LR(0) 分析表中所含有的动作冲突都能用上述方法解决，则称这个文法是 SLR(1) 文法，所构造的分析表为 SLR(1) 分析表，使用 SLR(1) 分析表的分析器称为 SLR(1) 分析器。</p>
+<h4 id="SLR-1-例子"><a href="#SLR-1-例子" class="headerlink" title="SLR(1) 例子"></a>SLR(1) 例子</h4><p>&emsp;&emsp;文法的定义如下：</p>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">0.</span> S&#x27;-&gt;E</span><br><span class="line"><span class="number">1.</span> E-&gt;E+T</span><br><span class="line"><span class="number">2.</span> E-&gt;T</span><br><span class="line"><span class="number">3.</span> T-&gt;T*F</span><br><span class="line"><span class="number">4.</span> T-&gt;F</span><br><span class="line"><span class="number">5.</span> F-&gt;(E)</span><br><span class="line"><span class="number">6.</span> F-&gt;i</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;该文法的项目有：</p>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span> S&#x27;-&gt;·E		<span class="number">11.</span> T-&gt;T*·F</span><br><span class="line"><span class="number">2.</span> S&#x27;-&gt;E·		<span class="number">12.</span> T-&gt;T*F·</span><br><span class="line"><span class="number">3.</span> E-&gt;·E+T		<span class="number">13.</span> T-&gt;·F</span><br><span class="line"><span class="number">4.</span> E-&gt;E·+T		<span class="number">14.</span> T-&gt;F·</span><br><span class="line"><span class="number">5.</span> E-&gt;E+·T		<span class="number">15.</span> F-&gt;·(E)</span><br><span class="line"><span class="number">6.</span> E-&gt;E+T·		<span class="number">16.</span> F-&gt;(·E)</span><br><span class="line"><span class="number">7.</span> E-&gt;·T		<span class="number">17.</span> F-&gt;(E·)</span><br><span class="line"><span class="number">8.</span> E-&gt;T·		<span class="number">18.</span> F-&gt;(E)·</span><br><span class="line"><span class="number">9.</span> T-&gt;·T*F		<span class="number">19.</span> F-&gt;·i</span><br><span class="line"><span class="number">10.</span> T-&gt;T·*F 	<span class="number">20.</span> F-&gt;i·</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;求闭包算法：</p>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">初始状态 I0:S&#x27;-&gt;·E  E-&gt;·E+T  E-&gt;·T  T-&gt;·T*F  T-&gt;·F  F-&gt;·(E)  F-&gt;·i</span><br><span class="line">I1 =GO(I0, E)=CLOSURE(S&#x27;-&gt;E·, E-&gt;E·+T)</span><br><span class="line">			 =&#123;S&#x27;-&gt;E·, E-&gt;E·+T&#125;</span><br><span class="line">I2 =GO(I0, T)=CLOSURE(E-&gt;T·, T-&gt;T·*F)</span><br><span class="line">			 =&#123;E-&gt;T·, T-&gt;T·*F&#125;</span><br><span class="line">I3 =GO(I0, F)=CLOSURE(T-&gt;F·)</span><br><span class="line">			 =&#123;T-&gt;F·&#125;</span><br><span class="line">I4 =GO(I0, ()=CLOSURE(F-&gt;(·E))</span><br><span class="line">			 =&#123;F-&gt;(·E), E-&gt;·E+T, E-&gt;·T, T-&gt;·T*F, T-&gt;·F, F-&gt;·(E), F-&gt;·i&#125;</span><br><span class="line">I5 =GO(I0, i)=CLOSURE(F-&gt;i·)</span><br><span class="line">			 =&#123;F-&gt;i·&#125;</span><br><span class="line">I6 =GO(I1, +)=CLOSURE(E-&gt;E+·T)</span><br><span class="line">			 =&#123;E-&gt;E+·T, T-&gt;·T*F, T-&gt;·F, F-&gt;·(E), F-&gt;·i&#125;</span><br><span class="line">I7 =GO(I2, *)=CLOSURE(T-&gt;T*·F)</span><br><span class="line">			 =&#123;T-&gt;T*·F, F-&gt;·(E), F-&gt;·i&#125;;</span><br><span class="line">I8 =GO(I4, E)=CLOSURE(F-&gt;(E·), E-&gt;E·+T)</span><br><span class="line">			 =&#123;F-&gt;(E·), E-&gt;E·+T&#125;</span><br><span class="line">    GO(I4, T)=CLOSURE(E-&gt;T·, T-&gt;T·*F)=I2	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I4, F)=CLOSURE(T-&gt;F·)=I3		# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I4, ()=CLOSURE(F-&gt;(·E))=I4	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I4, i)=CLOSURE(F-&gt;i·)=I5		# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">I9 =GO(I6, T)=CLOSURE(E-&gt;E+T·, T-&gt;T·*F)</span><br><span class="line">    		 =&#123;E-&gt;E+T·, T-&gt;T·*F&#125;</span><br><span class="line">    GO(I6, F)=CLOSURE(T-&gt;F·)=I3		# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I6, ()=CLOSURE(F-&gt;(·E))=I4	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I6, i)=CLOSURE(F-&gt;i·)=I5		# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">I10=GO(I7, F)=CLOSURE(T-&gt;T*F·)</span><br><span class="line">    		 =&#123;T-&gt;T*F·&#125;</span><br><span class="line">    GO(I7, ()=CLOSURE(F-&gt;(·E))=I4	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    GO(I7, i)=CLOSURE(F-&gt;i·)=I5		# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">I11=GO(I8, ))=CLOSURE(F-&gt;(E)·)</span><br><span class="line">    		 =&#123;F-&gt;(E)·&#125;</span><br><span class="line">    GO(I8, +)=CLOSURE(E-&gt;E+·T)=I6	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br><span class="line">    Go(I9, *)=CLOSURE(T-&gt;T*·F)=I7	# 前面已经求过闭包，不产生新状态，状态直接转换</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;识别活前缀的DFA，如下图所示：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SLR%281%29%E5%88%86%E6%9E%90%E5%99%A8.png" alt="image-20200514141309736"></p>
+<p>&emsp;&emsp;在 <code>I1、I2、I9</code> 中存在移进-归约冲突，因而这个表达式文法不是 LR(0) 文法，也就不能构造 LR(0) 分析表，现在分析 SLR(1) 方法是否可以解决冲突。</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">在 I1 中：S&#x27;-&gt;E·  E-&gt;E·+T</span><br><span class="line">由于 FOLLOW(S&#x27;)=&#123;#&#125;，而 S&#x27;-&gt;E· 是唯一的接受项目，所以当且仅当遇到句子的结束符 # 时才被接受。</span><br><span class="line">又因 &#123;#&#125;∩&#123;+&#125;=∅，因此 I1 中的冲突可解决。</span><br><span class="line">--------------------------------------------------------</span><br><span class="line">在 I2 中：E-&gt;T·  T-&gt;T·<span class="strong">*F</span></span><br><span class="line"><span class="strong">计算得出 FOLLOW(E)=&#123;#, +, )&#125;</span></span><br><span class="line"><span class="strong">这样 FOLLOW(E)∩&#123;*</span>&#125;=∅ </span><br><span class="line">因此当面临输入符为+、）或#时，则用产生式 E-&gt;T 进行规约；</span><br><span class="line">当面临输入符为 * 时，则移进；</span><br><span class="line">其他情况则报错</span><br><span class="line">--------------------------------------------------------</span><br><span class="line">在 I3 中：E-&gt;E+T·  T-&gt;T·<span class="strong">*F</span></span><br><span class="line"><span class="strong">计算得出 FOLLOW(E)=&#123;#, +, )&#125;</span></span><br><span class="line"><span class="strong">这样 FOLLOW(E)∩&#123;*</span>&#125;=∅</span><br><span class="line">因此当面临输入符为<span class="code">+、）或#时，则用产生式 E-&gt;E+</span>T· 进行归约；</span><br><span class="line">当面临输入符为 * 时，则移进；</span><br><span class="line">其他情况则报错</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;SLR(1) 分析表，如下所示：</p>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">	<span class="attribute">i</span>		+		*		(		)		#		E		T		F</span><br><span class="line"><span class="attribute">0</span>	S<span class="number">5</span>						S<span class="number">4</span>						<span class="number">1</span>		<span class="number">2</span>		<span class="number">3</span></span><br><span class="line"><span class="attribute">1</span>			S<span class="number">6</span>								acc</span><br><span class="line"><span class="attribute">2</span>			r<span class="number">2</span>		S<span class="number">7</span>				r<span class="number">2</span>		r<span class="number">2</span></span><br><span class="line"><span class="attribute">3</span>			r<span class="number">4</span>		r<span class="number">4</span>				r<span class="number">4</span>		r<span class="number">4</span></span><br><span class="line"><span class="attribute">4</span>	S<span class="number">5</span>						S<span class="number">4</span>						<span class="number">8</span>		<span class="number">2</span>		<span class="number">3</span></span><br><span class="line"><span class="attribute">5</span>			r<span class="number">6</span>		r<span class="number">6</span>				r<span class="number">6</span>		r<span class="number">6</span></span><br><span class="line"><span class="attribute">6</span>	S<span class="number">5</span>						S<span class="number">4</span>								<span class="number">9</span>		<span class="number">3</span></span><br><span class="line"><span class="attribute">7</span>	S<span class="number">5</span>						S<span class="number">4</span>										<span class="number">10</span></span><br><span class="line"><span class="attribute">8</span>			S<span class="number">6</span>						S<span class="number">11</span></span><br><span class="line"><span class="attribute">9</span>			r<span class="number">1</span>		S<span class="number">7</span>				r<span class="number">1</span>		r<span class="number">1</span></span><br><span class="line"><span class="attribute">10</span>			r<span class="number">3</span>		r<span class="number">3</span>				r<span class="number">3</span>		r<span class="number">3</span></span><br><span class="line"><span class="attribute">11</span>			r<span class="number">5</span>		r<span class="number">5</span>				r<span class="number">5</span>		r<span class="number">5</span></span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;对输入串 i+i*i # 的 SLR(1) 分析过程：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">步骤		状态栈		符号栈		输入串		ACTION		GOTO</span><br><span class="line"><span class="number">1</span>		 <span class="number">0</span>		   #		 i+i*i#	   S5</span><br><span class="line"><span class="number">2</span>		 <span class="number">05</span>		   #i		 +i*i#	   r6		   <span class="number">3</span></span><br><span class="line"><span class="number">3</span>		 <span class="number">03</span>		   #F		 +i*i#	   r4		   <span class="number">2</span></span><br><span class="line"><span class="number">4</span>		 <span class="number">02</span>		   #T		 +i*i#	   r2		   <span class="number">1</span></span><br><span class="line"><span class="number">5</span>		 <span class="number">01</span>		   #E		 +i*i#	   S6</span><br><span class="line"><span class="number">6</span>		 <span class="number">016</span>	   #E+		 i*i#	   S5</span><br><span class="line"><span class="number">7</span>        <span class="number">0165</span>      #E+i      *i#	   r6		   <span class="number">3</span></span><br><span class="line"><span class="number">8</span>		 <span class="number">0163</span>	   #E+F		 *i#	   r4		   <span class="number">9</span></span><br><span class="line"><span class="number">9</span>        <span class="number">0169</span>	   #E+T		 *i#	   S7</span><br><span class="line"><span class="number">10</span>		 <span class="number">01697</span>	   #E+T*	 i#		   S5</span><br><span class="line"><span class="number">11</span>		 <span class="number">016975</span>	   #E+T*i	 #		   r6		   <span class="number">10</span></span><br><span class="line"><span class="number">12</span>		 <span class="number">01697</span>(<span class="number">10</span>) #E+T*F	 #		   r3		   <span class="number">9</span></span><br><span class="line"><span class="number">13</span>		 <span class="number">0169</span>	   #E+T		 #		   r1		   <span class="number">1</span></span><br><span class="line"><span class="number">14</span>		 <span class="number">01</span>		   #E		 #		   acc</span><br></pre></td></tr></table></figure>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/">http://leecue.xyz/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/LR%E5%88%86%E6%9E%90/">LR分析</a><a class="post-meta__tags" href="/tags/SLR-1/">SLR(1)</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/"><img class="prev-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/5f3228be5c1dd949.jpg" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">AQS(Abstract-Queued-Synchronizer)原理剖析</div></div></a></div><div class="next-post pull-right"><a href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">LR分析——LR(1)分析器</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span> 相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2020/11/27/LR分析——LALR-1-分析器/" title="LR分析——LALR(1)分析器"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">LR分析——LALR(1)分析器</div></div></a></div><div><a href="/2020/11/27/LR分析——LR-0-分析器/" title="LR分析——LR(0)分析器"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">LR分析——LR(0)分析器</div></div></a></div><div><a href="/2020/11/27/LR分析——LR-1-分析器/" title="LR分析——LR(1)分析器"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">LR分析——LR(1)分析器</div></div></a></div><div><a href="/2020/11/27/LR分析——LR-1-程序实现/" title="LR分析——LR(1)程序实现"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">LR分析——LR(1)程序实现</div></div></a></div></div></div><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#SLR-1-%E5%88%86%E6%9E%90"><span class="toc-number">1.</span> <span class="toc-text">SLR(1) 分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#SLR-1-%E9%99%90%E5%AE%9A%E8%A6%81%E6%B1%82"><span class="toc-number">1.0.1.</span> <span class="toc-text">SLR(1) 限定要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%94%B9%E8%BF%9B%E7%9A%84-SLR-1-%E5%88%86%E6%9E%90%E8%A1%A8%E7%9A%84%E6%9E%84%E9%80%A0%E6%96%B9%E6%B3%95"><span class="toc-number">1.0.2.</span> <span class="toc-text">改进的 SLR(1) 分析表的构造方法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#SLR-1-%E5%88%86%E6%9E%90%E5%99%A8"><span class="toc-number">1.0.3.</span> <span class="toc-text">SLR(1) 分析器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#SLR-1-%E4%BE%8B%E5%AD%90"><span class="toc-number">1.0.4.</span> <span class="toc-text">SLR(1) 例子</span></a></li></ol></li></ol></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/5f3228be5c1dd949.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="AQS(Abstract-Queued-Synchronizer)原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析">AQS(Abstract-Queued-Synchronizer)原理剖析</a><time datetime="2020-11-27T02:35:45.000Z" title="发表于 2020-11-27 10:35:45">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——SLR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器">LR分析——SLR(1)分析器</a><time datetime="2020-11-27T02:25:42.000Z" title="发表于 2020-11-27 10:25:42">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——LR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器">LR分析——LR(1)分析器</a><time datetime="2020-11-27T02:25:30.000Z" title="发表于 2020-11-27 10:25:30">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/'
+    this.page.identifier = '2020/11/27/LR分析——SLR-1-分析器/'
+    this.page.title = 'LR分析——SLR(1)分析器'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>

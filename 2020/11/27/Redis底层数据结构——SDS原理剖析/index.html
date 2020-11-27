@@ -1,0 +1,277 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redis底层数据结构——SDS原理剖析 | 北枫的Blog~</title><meta name="keywords" content="数据结构,SDS"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="通过进一步的学习Redis底层数据结构SDS，Redis中默认的字符串实现，让我们一起揭开它神秘的面纱...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis底层数据结构——SDS原理剖析">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="通过进一步的学习Redis底层数据结构SDS，Redis中默认的字符串实现，让我们一起揭开它神秘的面纱...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png">
+<meta property="article:published_time" content="2020-11-27T01:50:25.000Z">
+<meta property="article:modified_time" content="2020-11-27T02:28:50.520Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="数据结构">
+<meta property="article:tag" content="SDS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 10:28:50'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><link rel="stylesheet" href="https://unpkg.com/xiaokang-style/butterfly/css/tags.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">Redis底层数据结构——SDS原理剖析</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T01:50:25.000Z" title="发表于 2020-11-27 09:50:25">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T02:28:50.520Z" title="更新于 2020-11-27 10:28:50">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/">Redis</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/%E5%8E%9F%E7%90%86%E7%AF%87/">原理篇</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">1.6k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>5分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="简单动态字符串"><a href="#简单动态字符串" class="headerlink" title="简单动态字符串"></a>简单动态字符串</h2><p>&emsp;&emsp;Redis底层并没有使用 C 语言的字符串来实现，而是使用了 SDS 作为Redis的默认字符串实现。</p>
+<ul>
+<li>如果Redis的键 Key 是一个字符串对象，那么底层使用的是 SDS 来实现。</li>
+<li>如果Redis的值 Value 是一个字符串对象，那么底层也是使用的是 SDS 来实现。</li>
+</ul>
+<p>&emsp;&emsp;SDS 除了可以实现 Redis 的键值表示形式，还可以作为 AOF 模块中缓冲区、客户端的输入缓冲区。</p>
+<hr>
+<h2 id="SDS-定义"><a href="#SDS-定义" class="headerlink" title="SDS 定义"></a>SDS 定义</h2><h3 id="结构体定义"><a href="#结构体定义" class="headerlink" title="结构体定义"></a>结构体定义</h3><p>&emsp;&emsp;在 C 语言中定义的结构体如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * 保存字符串对象的结构</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sdshdr</span> &#123;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// buf 中已占用空间的长度</span></span><br><span class="line">    <span class="keyword">int</span> len;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// buf 中剩余可用空间的长度</span></span><br><span class="line">    <span class="keyword">int</span> <span class="built_in">free</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 数据空间</span></span><br><span class="line">    <span class="keyword">char</span> buf[];</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="SDS结构示意图"><a href="#SDS结构示意图" class="headerlink" title="SDS结构示意图"></a>SDS结构示意图</h3><p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SDS%E7%A4%BA%E4%BE%8B%E5%9B%BE1.png"></p>
+<ul>
+<li><strong>free</strong>：代表缓冲区中剩余可以利用空间大小’’；</li>
+<li><strong>len</strong>：缓冲区中实际使用长度</li>
+<li><strong>buf</strong>：数据缓冲区，保存数据</li>
+</ul>
+<h3 id="SDS与C字符串区别"><a href="#SDS与C字符串区别" class="headerlink" title="SDS与C字符串区别"></a>SDS与C字符串区别</h3><p>&emsp;&emsp;C字符串长度为 N + 1，并且最后一个字符总是<code>&#39;\0&#39;</code>表示达到字符串尾部。</p>
+<h3 id="获取数组长度"><a href="#获取数组长度" class="headerlink" title="获取数组长度"></a>获取数组长度</h3><ul>
+<li>C字符串需要遍历一次数组，直到遇到 <code>&#39;\0&#39;</code>，时间复杂度为 O(n)</li>
+<li>SDS只需要直接返回 len 长度，时间复杂度为 O(1)，因为 len 记录的就是当前数组实际使用的长度</li>
+</ul>
+<h3 id="杜绝缓冲区溢出"><a href="#杜绝缓冲区溢出" class="headerlink" title="杜绝缓冲区溢出"></a>杜绝缓冲区溢出</h3><p>&emsp;&emsp;C 字符串在内存上是连续的，例如下图所示：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/C%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%89%A9%E5%B1%95%E5%89%8D.png"></p>
+<p>&emsp;&emsp;然后，现在对 <code>hello</code> 这一字符串进行扩展 <code>strcat(s1, &quot; world&quot;)</code>，改为 <code>hello world</code>，但是在扩展前忘记分配足够的内存空间，那么就会发生缓冲区溢出，如图所示：</p>
+<p>  <img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/C%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%89%A9%E5%B1%95%E5%90%8E.png"></p>
+<p>&emsp;&emsp;原先 s2 字符串 <code>redis</code> 将被 <code>world</code> 直接覆盖。</p>
+<p>&emsp;&emsp;SDS 则是杜绝了这种情况的发生，在对 SDS 进行修改的时候，会先进行检查对应的 free 是否满足本次扩展需求，如果不满足，则先进行扩展，扩展规则之后会介绍。然后对扩展之后的 SDS，将新添加进来的字符串直接复制到后面，最后更新相关属性值 <code>free</code> 和 <code>len</code>，以及添加新的结尾符号 <code>\0</code>。</p>
+<h3 id="内存重分配"><a href="#内存重分配" class="headerlink" title="内存重分配"></a>内存重分配</h3><p>&emsp;&emsp;C 字符串在程序执行 append 操作时，需要通过内存重分配来扩展底层数组的空间大小，如果没有进行的话，可能会发生内存溢出。</p>
+<p>&emsp;&emsp;C 字符串在程序执行 trim 操作（截断）时，需要通过内存重分配将不使用的内存释放掉，如果忘记进行，可能会出现内存泄露。</p>
+<p>&emsp;&emsp;在 Redis 为了减少内存重分配次数，使用未使用额外空间来减少次数，对于<strong>未使用空间</strong>，SDS有两种策略，<strong>空间预分配和惰性释放</strong>。</p>
+<h4 id="空间预分配"><a href="#空间预分配" class="headerlink" title="空间预分配"></a>空间预分配</h4><p>&emsp;&emsp;SDS 在每一次扩展字符串时候，首先需要判断剩余空间是否满足本次分配要求，如果满足，则将字符串添加到原来的后部；否则，需要进行预空间分配，分配的规则如下：</p>
+<ol>
+<li>如果此时的 len + 待添加字符串 总长度小于 1MB，那么分配 <code>(len + addLen) * 2</code>长度，并且使用一个额外空间来保存空字符。例如，此时已经使用 12 （len = 12）待添加字符串长度为 3，需要修改为 15 + 15 + 1 = 31 字节。</li>
+<li>如果此时的 len 长度大于 1MB，那么程序只会额外分配 1MB 的未使用空间，例如 30 MB + 1 MB + 1 byte</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取 s 目前的空余空间长度</span></span><br><span class="line">   <span class="keyword">size_t</span> <span class="built_in">free</span> = sdsavail(s);</span><br><span class="line"></span><br><span class="line">   <span class="keyword">size_t</span> len, newlen;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// s 目前的空余空间已经足够，无须再进行扩展，直接返回</span></span><br><span class="line">   <span class="keyword">if</span> (<span class="built_in">free</span> &gt;= addlen) <span class="keyword">return</span> s;</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 获取 s 目前已占用空间的长度</span></span><br><span class="line">   len = sdslen(s);</span><br><span class="line">   sh = (<span class="keyword">void</span>*) (s-(<span class="keyword">sizeof</span>(struct sdshdr)));</span><br><span class="line"></span><br><span class="line">   <span class="comment">// s 最少需要的长度</span></span><br><span class="line">   newlen = (len+addlen);</span><br><span class="line"></span><br><span class="line">   <span class="comment">// 根据新长度，为 s 分配新空间所需的大小		SDS_MAX_PREALLOC = 1024 * 1024 (1MB)</span></span><br><span class="line">   <span class="keyword">if</span> (newlen &lt; SDS_MAX_PREALLOC)</span><br><span class="line">       <span class="comment">// 如果新长度小于 SDS_MAX_PREALLOC </span></span><br><span class="line">       <span class="comment">// 那么为它分配两倍于所需长度的空间</span></span><br><span class="line">       newlen *= <span class="number">2</span>;</span><br><span class="line">   <span class="keyword">else</span></span><br><span class="line">       <span class="comment">// 否则，分配长度为目前长度加上 SDS_MAX_PREALLOC</span></span><br><span class="line">       newlen += SDS_MAX_PREALLOC;</span><br><span class="line">   <span class="comment">// T = O(N)</span></span><br><span class="line"><span class="comment">//进行内存预分配</span></span><br><span class="line">   newsh = zrealloc(sh, <span class="keyword">sizeof</span>(struct sdshdr)+newlen+<span class="number">1</span>);</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;下面的示例，SDS 初始值是一个 <code>hello</code>，len 长度为 5，此时没有进行预空间分配，所以 free 为 0。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SDS%281%29.png"></p>
+<p>&emsp;&emsp;此时，进行字符串扩展操作，strcat(s1, “ Lee”)，首先需要进行预空间分配，因为 len 此时为 5，所以第一次扩展长度为 9 + 9 + 1 == 18byte。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SDS%282%29new.png"></p>
+<h4 id="惰性空间释放"><a href="#惰性空间释放" class="headerlink" title="惰性空间释放"></a>惰性空间释放</h4><p>&emsp;&emsp;惰性空间释放优化 SDS 字符串缩短的操作，如果此时字符串的长度缩短，SDS 只会修改 len、free、buf的值，实际上并没有对剩余空间进行释放，造成一个已经释放的假象。这样做的好处：可以留下这部分未使用空间，等待将来增加字符串的操作时候使用。</p>
+<p>&emsp;&emsp;下面将对 <code>hello</code> 这个字符串，进行惰性空间释放</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SDS%281%29.png"></p>
+<p>&emsp;&emsp;删除 <code>lo</code> 这个字符串，变化之后的SDS，如图所示：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/SDS%283%29.png"></p>
+<hr>
+<h2 id="二进制安全"><a href="#二进制安全" class="headerlink" title="二进制安全"></a>二进制安全</h2><p>&emsp;&emsp;在 C 字符串中，遇到 <code>\0</code> 那么代表遍历结束，遇到了最后一个字符，但是，在SDS中 <code>\0</code> 并没有任何的意义，因为可以通过 len 来获取当前的实际数组长度，这样遍历的时候就确定了边界，从而达到数据写入的时候什么样子，那么遍历的时候就是什么样子。所以，SDS可以存储任意数据对象。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>&emsp;&emsp;总结一下C 字符串和 SDS 之间的区别</p>
+<table>
+<thead>
+<tr>
+<th align="center">C字符串</th>
+<th align="center">SDS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">获取数组长度，时间复杂度为O(n)</td>
+<td align="center">获取数组长度，时间复杂度为O(1)</td>
+</tr>
+<tr>
+<td align="center">可能会造成缓冲区溢出</td>
+<td align="center">不会造成缓冲区溢出</td>
+</tr>
+<tr>
+<td align="center">每一次更新字符串，都需要进行内存分配</td>
+<td align="center">每一次进行更新，不一定需要进行内存分配</td>
+</tr>
+<tr>
+<td align="center">只能保存文本数据</td>
+<td align="center">可以保存任何二进制数据</td>
+</tr>
+</tbody></table>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/">http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">数据结构</a><a class="post-meta__tags" href="/tags/SDS/">SDS</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/"><img class="prev-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">类加载过程&amp;双亲委派模型</div></div></a></div><div class="next-post pull-right"><a href="/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">Redis概述以及数据结构篇</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span> 相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2020/11/27/Redis概述以及数据结构篇/" title="Redis概述以及数据结构篇"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">Redis概述以及数据结构篇</div></div></a></div></div></div><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%AE%80%E5%8D%95%E5%8A%A8%E6%80%81%E5%AD%97%E7%AC%A6%E4%B8%B2"><span class="toc-number">1.</span> <span class="toc-text">简单动态字符串</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SDS-%E5%AE%9A%E4%B9%89"><span class="toc-number">2.</span> <span class="toc-text">SDS 定义</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BB%93%E6%9E%84%E4%BD%93%E5%AE%9A%E4%B9%89"><span class="toc-number">2.1.</span> <span class="toc-text">结构体定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#SDS%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE"><span class="toc-number">2.2.</span> <span class="toc-text">SDS结构示意图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#SDS%E4%B8%8EC%E5%AD%97%E7%AC%A6%E4%B8%B2%E5%8C%BA%E5%88%AB"><span class="toc-number">2.3.</span> <span class="toc-text">SDS与C字符串区别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8E%B7%E5%8F%96%E6%95%B0%E7%BB%84%E9%95%BF%E5%BA%A6"><span class="toc-number">2.4.</span> <span class="toc-text">获取数组长度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9D%9C%E7%BB%9D%E7%BC%93%E5%86%B2%E5%8C%BA%E6%BA%A2%E5%87%BA"><span class="toc-number">2.5.</span> <span class="toc-text">杜绝缓冲区溢出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E9%87%8D%E5%88%86%E9%85%8D"><span class="toc-number">2.6.</span> <span class="toc-text">内存重分配</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%A9%BA%E9%97%B4%E9%A2%84%E5%88%86%E9%85%8D"><span class="toc-number">2.6.1.</span> <span class="toc-text">空间预分配</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%83%B0%E6%80%A7%E7%A9%BA%E9%97%B4%E9%87%8A%E6%94%BE"><span class="toc-number">2.6.2.</span> <span class="toc-text">惰性空间释放</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%AE%89%E5%85%A8"><span class="toc-number">3.</span> <span class="toc-text">二进制安全</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/5f3228be5c1dd949.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="AQS(Abstract-Queued-Synchronizer)原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析">AQS(Abstract-Queued-Synchronizer)原理剖析</a><time datetime="2020-11-27T02:35:45.000Z" title="发表于 2020-11-27 10:35:45">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——SLR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器">LR分析——SLR(1)分析器</a><time datetime="2020-11-27T02:25:42.000Z" title="发表于 2020-11-27 10:25:42">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——LR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器">LR分析——LR(1)分析器</a><time datetime="2020-11-27T02:25:30.000Z" title="发表于 2020-11-27 10:25:30">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/'
+    this.page.identifier = '2020/11/27/Redis底层数据结构——SDS原理剖析/'
+    this.page.title = 'Redis底层数据结构——SDS原理剖析'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>

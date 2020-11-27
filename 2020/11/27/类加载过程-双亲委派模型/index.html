@@ -1,0 +1,273 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>类加载过程&amp;双亲委派模型 | 北枫的Blog~</title><meta name="keywords" content="类加载,双亲委派模型"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="进一步研究JVM底层实现原理，本文介绍Java类加载过程以及双亲委派模型...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="类加载过程&amp;双亲委派模型">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="进一步研究JVM底层实现原理，本文介绍Java类加载过程以及双亲委派模型...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg">
+<meta property="article:published_time" content="2020-11-27T02:00:28.000Z">
+<meta property="article:modified_time" content="2020-11-27T02:29:16.179Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="类加载">
+<meta property="article:tag" content="双亲委派模型">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 10:29:16'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><link rel="stylesheet" href="https://unpkg.com/xiaokang-style/butterfly/css/tags.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">类加载过程&amp;双亲委派模型</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T02:00:28.000Z" title="发表于 2020-11-27 10:00:28">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T02:29:16.179Z" title="更新于 2020-11-27 10:29:16">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/JVM/">JVM</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/JVM/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E7%AF%87/">类加载篇</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">1.5k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>4分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="关键词"><a href="#关键词" class="headerlink" title="关键词"></a>关键词</h2><ul>
+<li>类加载过程</li>
+<li>类加载器</li>
+<li>双亲委派模型</li>
+</ul>
+<hr>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>&emsp;&emsp;最近深入理解虚拟机出了第三版（最新版），同时自己也是回顾了一下关于类加载这块知识点，由于当时看第一遍的时候，其中大部分都是似懂非懂，例如：synchronized实现的原理，锁的原理，通过后面的实践以及学习相关的知识，有了一些认识后，然后借助这个时机，重新回顾一下jvm相关知识，有了新的收获。</p>
+<h2 id="概念区分"><a href="#概念区分" class="headerlink" title="概念区分"></a>概念区分</h2><p>&emsp;&emsp;先区分一下<strong>类加载过程</strong>和<strong>类加器</strong>的区别：</p>
+<blockquote>
+<p><strong>类加载过程</strong>：是由一系列动作组成，例如：加载、验证、准备、解析、初始化</p>
+</blockquote>
+<blockquote>
+<p><strong>类加载器</strong>：指完成类加载过程的一个实例</p>
+</blockquote>
+<p>&emsp;&emsp;一个类的生命周期为：加载-&gt;验证-&gt;准备-&gt;解析-&gt;初始化-&gt;使用-&gt;卸载。</p>
+<ul>
+<li><font color='red'>类变量</font>：指的是被static修饰</li>
+<li><font color='red'>实例变量</font>：指的是通过该类的对象（实例）去访问的变量</li>
+</ul>
+<hr>
+<h2 id="类加载时机"><a href="#类加载时机" class="headerlink" title="类加载时机"></a>类加载时机</h2><ol>
+<li>使用new创建对象时候；</li>
+<li>访问或者修改类变量（<strong>static修饰</strong>的，<strong>不包括被final修饰</strong>的，因为被final修饰的会被放在常量池中）；</li>
+<li>调用静态方法；</li>
+<li>使用反射reflect时候；</li>
+<li>初始化一个类的时候，如果父类没有被加载，那么首先应该加载该父类；</li>
+<li>JDK8中引入接口的默认方法（default关键字），如果有一个类实现这种接口（带有default关键字），那么首先应该加载该接口。</li>
+</ol>
+<hr>
+<h2 id="类加载过程"><a href="#类加载过程" class="headerlink" title="类加载过程"></a>类加载过程</h2><h3 id="加载"><a href="#加载" class="headerlink" title="加载"></a>加载</h3><p>&emsp;&emsp;类加载过程中的第一个阶段，主要完成三件事情：</p>
+<ol>
+<li>通过一个类的全限定类名加载class字节码流</li>
+<li>将类的静态存储结构转换为运行时数据结构</li>
+<li>生成一个 <code>java.lang.Class</code> 对象，作为之后这个类的各种数据访问入口</li>
+</ol>
+<h3 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h3><p>&emsp;&emsp;校验加载进来的class字节码流是否合法，主要校验以下几个方面：</p>
+<ul>
+<li>文件格式验证，文件头、版本号是否在当前虚拟机接受范围内…</li>
+<li>元数据验证，主要进行进行的是语义分析。该类是否继承父类？父类是否是一个final修饰的类？</li>
+<li>字节码验证，校验数据是否合法（类型、类型转换上）</li>
+<li>符号引用验证</li>
+</ul>
+<h3 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h3><p>&emsp;&emsp;该阶段主要是，将类变量分配初始化空间，注意以下几个方面问题：</p>
+<ul>
+<li><strong>此时没有按照程序意图赋值，仅仅是赋一个初始值</strong>；</li>
+<li><strong>如果是被 <code>static final</code> 修饰的变量，直接赋初始值</strong>；因为会在常量池中直接分配，作为一个常量。</li>
+</ul>
+<h3 id="解析"><a href="#解析" class="headerlink" title="解析"></a>解析</h3><p>&emsp;&emsp;解析阶段，是将虚拟机将常量池内的符号引用替换为直接引用的过程：</p>
+<ul>
+<li><strong>符号引用</strong>：是指一组用来描述所引用的目标，符号可以是任何形式的字面量，只要能无歧义定位到目标，也就是通过这个引用可以直接访问到目标，但是没有实际意义的；</li>
+<li><strong>直接引用</strong>：是指可以访问到目标的指针，偏移量，或者可以间接访问到对象的一个句柄；</li>
+</ul>
+<h3 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h3><p>&emsp;&emsp;初始化阶段，指的是执行 <code>&lt;clinit&gt;</code> 方法，类构造器的方法，注意与 <code>&lt;init&gt;</code> 方法区分；</p>
+<ul>
+<li><code>&lt;clinit&gt;</code>：由编译器自动收集所有类变量的赋值动作和语句块 <code>static&#123;&#125;</code> 合并产生的；</li>
+<li><code>&lt;init&gt;</code>：类中按照程序员意图定义为构造器方法</li>
+</ul>
+<hr>
+<h2 id="类加载器"><a href="#类加载器" class="headerlink" title="类加载器"></a>类加载器</h2><p>&emsp;&emsp;类加载器，指的是完成上述类加载过程这一系列动作的；</p>
+<p>&emsp;&emsp;判断两个类的实例是否相等，首先要判断两个类是否由同一个类加载器加载，如果不是，则两个对象虽然同属于一个类的实例并且字段也相等，但是两个对象是不相等的。</p>
+<hr>
+<h2 id="双亲委派模型"><a href="#双亲委派模型" class="headerlink" title="双亲委派模型"></a>双亲委派模型</h2><p>&emsp;&emsp;首先，来看一下双亲委派模型图：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%A8%A1%E5%9E%8B.png"></p>
+<ul>
+<li>启动类加载器（Boostrap Class Loader）：负责加载 <code>&lt;JAVA_HOME&gt;\lib</code> 目录下的类</li>
+<li>扩展类加载器（Extension Class Loader）：负责加载 <code>&lt;JAVA_HOME&gt;\lib\ext</code> 目录下的类</li>
+<li>应用程序类加载器（Application Class Loader）：负责加载 <code>&lt;classpath&gt;</code> 用户类路径下的类</li>
+</ul>
+<h3 id="工作过程"><a href="#工作过程" class="headerlink" title="工作过程"></a>工作过程</h3><p>&emsp;&emsp;如果一个类加器收到了类加载请求，首先它自己本身不会加载该类，而是将该类交由给父类加载器去处理加载，如果父类无法处理该加载请求，那么子类加载器才会尝试进行加载该类。</p>
+<h3 id="额外"><a href="#额外" class="headerlink" title="额外"></a>额外</h3><p>&emsp;&emsp;一个类只能被加载一次，这一点很关键，也是单例模式实现方式之一的来源，让我们看一下源码如何定义：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> Class&lt;?&gt; loadClass(String name) <span class="keyword">throws</span> ClassNotFoundException &#123;</span><br><span class="line">	<span class="keyword">return</span> loadClass(name, <span class="keyword">false</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span> Class&lt;?&gt; loadClass(String name, <span class="keyword">boolean</span> resolve)</span><br><span class="line">       <span class="keyword">throws</span> ClassNotFoundException</span><br><span class="line">   &#123;</span><br><span class="line">       <span class="comment">// 加锁，保证同一个类只能被加载一次的关键</span></span><br><span class="line">       <span class="keyword">synchronized</span> (getClassLoadingLock(name)) &#123;</span><br><span class="line">           <span class="comment">// 检查该类是否已经被加载过了，防止重复加载同一个类</span></span><br><span class="line">           Class&lt;?&gt; c = findLoadedClass(name);</span><br><span class="line">           <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">               <span class="keyword">long</span> t0 = System.nanoTime();</span><br><span class="line">               <span class="keyword">try</span> &#123;</span><br><span class="line">                   <span class="keyword">if</span> (parent != <span class="keyword">null</span>) &#123;</span><br><span class="line">                       <span class="comment">// 双亲委派模型，交由给父类去加载</span></span><br><span class="line">                       c = parent.loadClass(name, <span class="keyword">false</span>);</span><br><span class="line">                   &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                       <span class="comment">// 如果父类不能加载该类，那么自己尝试去加载该类</span></span><br><span class="line">                       c = findBootstrapClassOrNull(name);</span><br><span class="line">                   &#125;</span><br><span class="line">               &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">                   <span class="comment">// ClassNotFoundException thrown if class not found</span></span><br><span class="line">                   <span class="comment">// from the non-null parent class loader</span></span><br><span class="line">               &#125;</span><br><span class="line"></span><br><span class="line">               <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">                   <span class="comment">// If still not found, then invoke findClass in order</span></span><br><span class="line">                   <span class="comment">// to find the class.</span></span><br><span class="line">                   <span class="keyword">long</span> t1 = System.nanoTime();</span><br><span class="line">                   c = findClass(name);</span><br><span class="line"></span><br><span class="line">                   <span class="comment">// this is the defining class loader; record the stats</span></span><br><span class="line">                   PerfCounter.getParentDelegationTime().addTime(t1 - t0);</span><br><span class="line">                   PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);</span><br><span class="line">                   PerfCounter.getFindClasses().increment();</span><br><span class="line">               &#125;</span><br><span class="line">           &#125;</span><br><span class="line">           <span class="keyword">if</span> (resolve) &#123;</span><br><span class="line">               resolveClass(c);</span><br><span class="line">           &#125;</span><br><span class="line">           <span class="keyword">return</span> c;</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/">http://leecue.xyz/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B1%BB%E5%8A%A0%E8%BD%BD/">类加载</a><a class="post-meta__tags" href="/tags/%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/">双亲委派模型</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2020/11/27/MySQL%E4%B8%ADMVCC%E4%B8%8E%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%9B%9B%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB/"><img class="prev-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/mysql.jpg" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">MySQL中MVCC与事务的四种隔离级别</div></div></a></div><div class="next-post pull-right"><a href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">Redis底层数据结构——SDS原理剖析</div></div></a></div></nav><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E8%AF%8D"><span class="toc-number">1.</span> <span class="toc-text">关键词</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">2.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A6%82%E5%BF%B5%E5%8C%BA%E5%88%86"><span class="toc-number">3.</span> <span class="toc-text">概念区分</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%97%B6%E6%9C%BA"><span class="toc-number">4.</span> <span class="toc-text">类加载时机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B"><span class="toc-number">5.</span> <span class="toc-text">类加载过程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8A%A0%E8%BD%BD"><span class="toc-number">5.1.</span> <span class="toc-text">加载</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%AA%8C%E8%AF%81"><span class="toc-number">5.2.</span> <span class="toc-text">验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%87%86%E5%A4%87"><span class="toc-number">5.3.</span> <span class="toc-text">准备</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%A7%A3%E6%9E%90"><span class="toc-number">5.4.</span> <span class="toc-text">解析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="toc-number">5.5.</span> <span class="toc-text">初始化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8"><span class="toc-number">6.</span> <span class="toc-text">类加载器</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B"><span class="toc-number">7.</span> <span class="toc-text">双亲委派模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%BD%9C%E8%BF%87%E7%A8%8B"><span class="toc-number">7.1.</span> <span class="toc-text">工作过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A2%9D%E5%A4%96"><span class="toc-number">7.2.</span> <span class="toc-text">额外</span></a></li></ol></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/5f3228be5c1dd949.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="AQS(Abstract-Queued-Synchronizer)原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析">AQS(Abstract-Queued-Synchronizer)原理剖析</a><time datetime="2020-11-27T02:35:45.000Z" title="发表于 2020-11-27 10:35:45">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——SLR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器">LR分析——SLR(1)分析器</a><time datetime="2020-11-27T02:25:42.000Z" title="发表于 2020-11-27 10:25:42">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——LR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器">LR分析——LR(1)分析器</a><time datetime="2020-11-27T02:25:30.000Z" title="发表于 2020-11-27 10:25:30">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/jvm123123.jpg)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E8%BF%87%E7%A8%8B-%E5%8F%8C%E4%BA%B2%E5%A7%94%E6%B4%BE%E6%A8%A1%E5%9E%8B/'
+    this.page.identifier = '2020/11/27/类加载过程-双亲委派模型/'
+    this.page.title = '类加载过程&双亲委派模型'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>

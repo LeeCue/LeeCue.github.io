@@ -1,0 +1,314 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redis概述以及数据结构篇 | 北枫的Blog~</title><meta name="keywords" content="数据结构,概述"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="Redis是一种非关系型数据库，是当下十分火热的技术，本文针对其数据结构以及它们的使用场景进行简单地介绍...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis概述以及数据结构篇">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="Redis是一种非关系型数据库，是当下十分火热的技术，本文针对其数据结构以及它们的使用场景进行简单地介绍...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png">
+<meta property="article:published_time" content="2020-11-27T01:50:25.000Z">
+<meta property="article:modified_time" content="2020-11-27T02:29:09.614Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="数据结构">
+<meta property="article:tag" content="概述">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 10:29:09'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><link rel="stylesheet" href="https://unpkg.com/xiaokang-style/butterfly/css/tags.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">Redis概述以及数据结构篇</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T01:50:25.000Z" title="发表于 2020-11-27 09:50:25">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T02:29:09.614Z" title="更新于 2020-11-27 10:29:09">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/">Redis</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/%E6%A6%82%E8%BF%B0%E7%AF%87/">概述篇</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">2.1k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>6分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>&emsp;&emsp;Redis 是近期一款非常热门的 NoSQL 型数据库，它具有以下特点：</p>
+<ul>
+<li>基于内存，响应速度非常快；</li>
+<li>单线程架构（可保证请求的顺序性，以及防止并发操作）；</li>
+<li>采用 IO多路复用（select、poll、epoll） 处理套接字连接，将套接字都放入一个队列中；</li>
+<li>采用文件事件分派器，根据套接字当前产生的事件调用响应的事件处理器；</li>
+<li>支持数据的持久化，具有 RDB、AOF 两种方式；</li>
+<li>主从复制，支持一主多从拓扑结构；</li>
+<li>高可用、分布式，sentinel哨兵监控可以保证高可用行；采用分槽机制实现集群。</li>
+</ul>
+<p>&emsp;&emsp;Redis有 <strong>五种</strong> 基本数据结构，以及 <strong>三种</strong> 扩展的数据结构，本文将依次介绍各个数据结构的特点，以及一些基本用法和对应的使用场景。</p>
+<ol>
+<li>字符串</li>
+<li>哈希</li>
+<li>列表</li>
+<li>集合</li>
+<li>有序集合</li>
+<li>bitMaps</li>
+<li>HyperLogLog</li>
+<li>geo</li>
+</ol>
+<p>&emsp;&emsp;高级用法，将在后面文章讨论。</p>
+<ul>
+<li>pub/sub，发布/订阅模式</li>
+<li>pipeline，管道机制，将多个命令封装一次请求，然后顺序返回相应的操作结果，增大了网络的吞吐量，但是减少了网络IO次数。</li>
+<li>lua脚本，将业务封装到脚本，然后依据 Redis 单线程架构模型，一次性执行脚本内容，可以达到原子性，有效地解决一些并发场景。</li>
+<li>事务，采用 watch、multi、exec 命令来操作，可以像关系型数据库那样操作事务，但是没有那么完善。内部使用乐观锁的机制来执行，有效地解决了ABA问题（通过链表来连接，若key在事务执行期间发生改变，通过标志位 REDIS_DIRTY_CAS 表示，表示是否事务的安全性被破坏）</li>
+</ul>
+<h2 id="字符串"><a href="#字符串" class="headerlink" title="字符串"></a>字符串</h2><p>&emsp;&emsp;字符串类型，是Redis中最基础的数据结构。字符串类型的值实际上可以由 <strong>JSON</strong>、<strong>普通文本串</strong>、<strong>数字</strong>、<strong>二进制文件</strong>，最大值不超过 512MB。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/Redis%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%BB%93%E6%9E%84%E5%9B%BE.png"></p>
+<h3 id="底层实现原理"><a href="#底层实现原理" class="headerlink" title="底层实现原理"></a>底层实现原理</h3><p>&emsp;&emsp;底层使用 SDS（Simple Dynamic String）实现，使用 SDS 可以有效避免未及时分配内存区域而导致的覆盖行为，更多有关 SDS 具体细节，将在之后的文章讨论。  </p>
+<h3 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h3><p>&emsp;&emsp;set 命令可以有多个选项：set key value [ex seconds] [px milliseconds] [nx|xx]</p>
+<ul>
+<li>ex seconds：为键设置秒级过期时间</li>
+<li>px milliseconds：为键设置毫秒级过期时间</li>
+<li>nx：键必须不存在，才可以设置成功，用于添加</li>
+<li>xx：与 nx 相反，键必须存在，才可以设置成功，用户更新</li>
+</ul>
+<h3 id="使用场景"><a href="#使用场景" class="headerlink" title="使用场景"></a>使用场景</h3><h4 id="缓存功能"><a href="#缓存功能" class="headerlink" title="缓存功能"></a>缓存功能</h4><p>&emsp;&emsp;最经典的场景之一，使用 MySQL 作为存储层，Redis 作为缓存层，MySQL 大部分请求的数据都是从 Redis 中获取。由于 Redis 具有支撑高并发的特性，所以缓存能起到加速读写和降低后端压力的作用。</p>
+<blockquote>
+<p>常见的设计键名的方法：业务名称:对象名: id[:属性]，可以不使用冒号，使用下划线隔开也可以。</p>
+</blockquote>
+<ul>
+<li>注意事项：使用缓冲时，应注意<strong>缓存一致性</strong>问题，也就是先更新缓存还是DB问题。<ul>
+<li>如果先更新缓存，然后更新DB失败，下一个读请求读到的数据就是未曾更新到DB的数据，这样的数据明显有问题，建议先更新DB，然后在选择操作缓存层。</li>
+<li>如果采用先淘汰缓存，然后更新DB操作，如果在DB更新完成之前，来了一个新的读的请求，那么就会查询出数据库旧的数据，缓存到Redis，导致DB更新完成之后，两者数据不一致。</li>
+<li>如果先更新DB，然后操作缓存失败，客户端读取的是旧数据，但是实际业务还是以DB数据为准，这种读到的未更新到DB的数据影响较小，可以采用重试机制更新缓存层，或者使用异步机制来进行。</li>
+</ul>
+</li>
+</ul>
+<h4 id="共享session"><a href="#共享session" class="headerlink" title="共享session"></a>共享session</h4><p>&emsp;&emsp;现在的服务器架构大部分分布式服务，用户的请求可以在不同的服务器上进行处理，用户的会话状态就不一致的问题。</p>
+<p>&emsp;&emsp;解决这一问题的方案，可以使用Redis进行用户session的统一管理，每次用户更新或者用户用户登录状态信息，可以去 Redis 中获取。</p>
+<h4 id="限速"><a href="#限速" class="headerlink" title="限速"></a>限速</h4><p>&emsp;&emsp;限制用户恶意频繁地调用接口，可以采用一个带有过期时间的key，如果下一次请求该key存在，那么不进行后续的业务处理。</p>
+<hr>
+<h2 id="哈希"><a href="#哈希" class="headerlink" title="哈希"></a>哈希</h2><p>&emsp;&emsp;在 Redis 中，哈希是指键值本身又是一个键值对结构，形如 value = <code>&#123;&#123;field, value&#125;, ... &#123;fieldN, valueN&#125;&#125;</code>，哈希的结构关系可以用下图来表示：  </p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/Redis%E5%93%88%E5%B8%8C%E7%BB%93%E6%9E%84.png"></p>
+<h3 id="底层原理"><a href="#底层原理" class="headerlink" title="底层原理"></a>底层原理</h3><p>&emsp;&emsp;内部实现方式有两种：</p>
+<ul>
+<li><strong>ziplist</strong>（压缩列表）：当哈希类型元素个数 hash-max-ziplist-entries 小于配置（默认512），同时所有值都小于 hash-max-ziplist-value 配置（默认64字节）时，Redis 会使用 ziplist 作为 hash 的内部实现。</li>
+<li><strong>hashtable</strong>（哈希表）：当无法满足 ziplist 的条件时，会使用 hashtable 作为底层实现，读写效率为 O(1)。</li>
+</ul>
+<h3 id="使用场景-1"><a href="#使用场景-1" class="headerlink" title="使用场景"></a>使用场景</h3><h4 id="缓存用户数据"><a href="#缓存用户数据" class="headerlink" title="缓存用户数据"></a>缓存用户数据</h4><p>&emsp;&emsp;field 为字段名称，value 为字段属性，但是采用 哈希 存储用户数据，模拟关系型数据库复杂查询有点难度。</p>
+<hr>
+<h2 id="列表"><a href="#列表" class="headerlink" title="列表"></a>列表</h2><p>&emsp;&emsp;列表是一种可以有序存储字符串的数据结构，最多存储 2^31^-1 个元素，并且非常灵活，可以充当队列、栈来使用，下图为相应的数据结构，下标都是从0开始：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/Redis%E5%88%97%E8%A1%A8%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png"></p>
+<p>&emsp;&emsp;列表具有以下两个特点：</p>
+<ul>
+<li>有序：可以保证插入有序，可以采用下标来获取元素、删除元素（下标从0开始）</li>
+<li>具有重复元素</li>
+</ul>
+<h3 id="底层实现"><a href="#底层实现" class="headerlink" title="底层实现"></a>底层实现</h3><p>&emsp;&emsp;底层实现方式有两种：</p>
+<ul>
+<li><strong>ziplist</strong>（压缩列表）：限制条件与哈希那个类似，只不过改为 list-max-ziplist-entries。</li>
+<li><strong>LinkedList</strong>（链表）</li>
+</ul>
+<h3 id="使用场景-2"><a href="#使用场景-2" class="headerlink" title="使用场景"></a>使用场景</h3><h4 id="消息队列"><a href="#消息队列" class="headerlink" title="消息队列"></a>消息队列</h4><p>&emsp;&emsp;使用 lpush+brpop 命令组合计科实现阻塞队列，生产者采用 lpush 命令生产消息，多个消费者采用 brpop 阻塞获取消息，这种消息队列容易将消息丢失，无法保证消息正确被消费，如果需要保证消费消息的正确性，使用专业的消息队列中间件（RabbitMQ、RocketMQ等）</p>
+<blockquote>
+<p>用列表实现多个数据结构：</p>
+<ul>
+<li>lpush+lpop=Stack（栈）</li>
+<li>lpush+rpop=Queue（队列）</li>
+<li>lpush+ltrim=Capped Collection（有限集合）</li>
+<li>lpush+brpop=Message Queue（消息队列）</li>
+</ul>
+</blockquote>
+<hr>
+<h2 id="集合"><a href="#集合" class="headerlink" title="集合"></a>集合</h2><p>&emsp;&emsp;集合也是用来存储多个字符串类型的数据结构，但是与列表不同的地方在于<strong>无序</strong>以及<strong>不允许有重复元素</strong>，支持集合之间的运算（并交补差），相应的数据结构图如下：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/Redis%E9%9B%86%E5%90%88%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png"></p>
+<h3 id="底层实现-1"><a href="#底层实现-1" class="headerlink" title="底层实现"></a>底层实现</h3><p>&emsp;&emsp;底层实现有两种方式。</p>
+<ul>
+<li><strong>intset</strong>（整数集合）：当集合中元素个数小于 set-max-intset-entries 配置（默认512）时，采用inset来存储。</li>
+<li><strong>hashtable</strong>（哈希表）：当不满足 inset 条件时，转换为 hashtable 来存储。</li>
+</ul>
+<h3 id="使用场景-3"><a href="#使用场景-3" class="headerlink" title="使用场景"></a>使用场景</h3><h4 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h4><p>&emsp;&emsp;可以将用户的标签作为一个set集合进行存储，然后将两个用户标签集合进行运算，得出共同喜好的标签内容。</p>
+<blockquote>
+<p>sadd = Tagging 标签</p>
+<p>spop/srandommember = Random item 随机数 抽奖</p>
+</blockquote>
+<hr>
+<h2 id="有序集合"><a href="#有序集合" class="headerlink" title="有序集合"></a>有序集合</h2><p>&emsp;&emsp;有序集合保留了集合的特点，不允许重复元素，并且可以给每一个元素分配一个score，可以根据score排序，相应的数据结构图为：</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/Redis%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png"></p>
+<ul>
+<li><strong>注意</strong>：允许分数出现相同，但是不允许元素重复。</li>
+</ul>
+<h3 id="底层实现-2"><a href="#底层实现-2" class="headerlink" title="底层实现"></a>底层实现</h3><p>&emsp;&emsp;底层实现有两种方式：</p>
+<ul>
+<li><strong>ziplist</strong>（压缩列表）：当有序集合中元素个数小于 zset-max-ziplist-entries 配置（默认128个），并每个元素的值小于 zset-max-ziplist-value 配置（默认64字节），Redis 底层使用ziplist来存储。</li>
+<li><strong>skiplist</strong>（跳跃表）：一种用空间换取时间复杂度，最优 O(logn)，最差 O(n)。</li>
+</ul>
+<h3 id="使用场景-4"><a href="#使用场景-4" class="headerlink" title="使用场景"></a>使用场景</h3><h4 id="排行榜系统"><a href="#排行榜系统" class="headerlink" title="排行榜系统"></a>排行榜系统</h4><p>&emsp;&emsp;用户获得一个赞，将对应的score增加一。</p>
+<p>&emsp;&emsp;获取排行榜前几个元素，zrevrangebyrank key start end</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/">http://leecue.xyz/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">数据结构</a><a class="post-meta__tags" href="/tags/%E6%A6%82%E8%BF%B0/">概述</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E2%80%94%E2%80%94SDS%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/"><img class="prev-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">Redis底层数据结构——SDS原理剖析</div></div></a></div><div class="next-post pull-right"><a href="/2020/11/24/%E7%9B%B8%E4%BF%A1%E8%87%AA%E5%B7%B1-%E7%9B%B8%E4%BF%A1%E6%9C%AA%E6%9D%A5/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/dreamBig.jpg" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">相信自己 相信未来~</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span> 相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2020/11/27/Redis底层数据结构——SDS原理剖析/" title="Redis底层数据结构——SDS原理剖析"><img class="cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2020-11-27</div><div class="title">Redis底层数据结构——SDS原理剖析</div></div></a></div></div></div><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">13</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">20</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">15</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AD%97%E7%AC%A6%E4%B8%B2"><span class="toc-number">2.</span> <span class="toc-text">字符串</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="toc-number">2.1.</span> <span class="toc-text">底层实现原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%91%BD%E4%BB%A4"><span class="toc-number">2.2.</span> <span class="toc-text">命令</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">2.3.</span> <span class="toc-text">使用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E5%8A%9F%E8%83%BD"><span class="toc-number">2.3.1.</span> <span class="toc-text">缓存功能</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%85%B1%E4%BA%ABsession"><span class="toc-number">2.3.2.</span> <span class="toc-text">共享session</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%99%90%E9%80%9F"><span class="toc-number">2.3.3.</span> <span class="toc-text">限速</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%93%88%E5%B8%8C"><span class="toc-number">3.</span> <span class="toc-text">哈希</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86"><span class="toc-number">3.1.</span> <span class="toc-text">底层原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF-1"><span class="toc-number">3.2.</span> <span class="toc-text">使用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%94%A8%E6%88%B7%E6%95%B0%E6%8D%AE"><span class="toc-number">3.2.1.</span> <span class="toc-text">缓存用户数据</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%97%E8%A1%A8"><span class="toc-number">4.</span> <span class="toc-text">列表</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">底层实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF-2"><span class="toc-number">4.2.</span> <span class="toc-text">使用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97"><span class="toc-number">4.2.1.</span> <span class="toc-text">消息队列</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%9B%86%E5%90%88"><span class="toc-number">5.</span> <span class="toc-text">集合</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0-1"><span class="toc-number">5.1.</span> <span class="toc-text">底层实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF-3"><span class="toc-number">5.2.</span> <span class="toc-text">使用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%88%86%E7%B1%BB"><span class="toc-number">5.2.1.</span> <span class="toc-text">分类</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88"><span class="toc-number">6.</span> <span class="toc-text">有序集合</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0-2"><span class="toc-number">6.1.</span> <span class="toc-text">底层实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF-4"><span class="toc-number">6.2.</span> <span class="toc-text">使用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8E%92%E8%A1%8C%E6%A6%9C%E7%B3%BB%E7%BB%9F"><span class="toc-number">6.2.1.</span> <span class="toc-text">排行榜系统</span></a></li></ol></li></ol></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/5f3228be5c1dd949.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="AQS(Abstract-Queued-Synchronizer)原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/AQS-Abstract-Queued-Synchronizer-%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="AQS(Abstract-Queued-Synchronizer)原理剖析">AQS(Abstract-Queued-Synchronizer)原理剖析</a><time datetime="2020-11-27T02:35:45.000Z" title="发表于 2020-11-27 10:35:45">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——SLR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94SLR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——SLR(1)分析器">LR分析——SLR(1)分析器</a><time datetime="2020-11-27T02:25:42.000Z" title="发表于 2020-11-27 10:25:42">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/bianyiyuanli.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="LR分析——LR(1)分析器"/></a><div class="content"><a class="title" href="/2020/11/27/LR%E5%88%86%E6%9E%90%E2%80%94%E2%80%94LR-1-%E5%88%86%E6%9E%90%E5%99%A8/" title="LR分析——LR(1)分析器">LR分析——LR(1)分析器</a><time datetime="2020-11-27T02:25:30.000Z" title="发表于 2020-11-27 10:25:30">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/Redis%E6%A6%82%E8%BF%B0%E4%BB%A5%E5%8F%8A%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E7%AF%87/'
+    this.page.identifier = '2020/11/27/Redis概述以及数据结构篇/'
+    this.page.title = 'Redis概述以及数据结构篇'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>
