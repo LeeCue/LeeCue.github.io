@@ -1,0 +1,264 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redis底层原理实现——字典原理剖析 | 北枫的Blog~</title><meta name="keywords" content="底层原理,hash字典"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="通过进一步的学习Redis中字典hash底层原理，让我们一起揭开它神秘的面纱...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis底层原理实现——字典原理剖析">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="通过进一步的学习Redis中字典hash底层原理，让我们一起揭开它神秘的面纱...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png">
+<meta property="article:published_time" content="2020-11-27T08:42:20.000Z">
+<meta property="article:modified_time" content="2020-11-27T08:44:17.278Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="底层原理">
+<meta property="article:tag" content="hash字典">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 16:44:17'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">16</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">25</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">17</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">Redis底层原理实现——字典原理剖析</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T08:42:20.000Z" title="发表于 2020-11-27 16:42:20">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T08:44:17.278Z" title="更新于 2020-11-27 16:44:17">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/">Redis</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/%E5%8E%9F%E7%90%86%E7%AF%87/">原理篇</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">1.8k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>6分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="字典"><a href="#字典" class="headerlink" title="字典"></a>字典</h2><p>&emsp;&emsp;字典，一个键 key 和一个值 value 进行关联，一对一的关系映射，这些关联又称为键值对。</p>
+<p>&emsp;&emsp;在 Redis 中的应用十分广泛，比如 Redis 的数据库就是使用字典作为底层实现的，对数据库的增、删、改、查操作就是构建在对字典的操作之上的。字典还是哈希键的底层实现之一，当一个哈希键包含的键值对比较多，又或者键值对中的元素都是比较长的元素时，Redsi 就会使用字典作为哈希键的底层实现。</p>
+<blockquote>
+<ul>
+<li><strong>ziplist</strong>（压缩列表）：当哈希类型元素个数 hash-max-ziplist-entries 小于配置（默认512），同时所有值都小于 hash-max-ziplist-value 配置（默认64字节）时，Redis 会使用 ziplist 作为 hash 的内部实现。</li>
+<li><strong>hashtable</strong>（哈希表）：当无法满足 ziplist 的条件时，会使用 hashtable 作为底层实现，读写效率为 O(1)。</li>
+</ul>
+</blockquote>
+<hr>
+<h2 id="字典的内部实现"><a href="#字典的内部实现" class="headerlink" title="字典的内部实现"></a>字典的内部实现</h2><h3 id="哈希表"><a href="#哈希表" class="headerlink" title="哈希表"></a>哈希表</h3><p>&emsp;&emsp;Redis 字典所使用的哈希表结构体，定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictht</span> &#123;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 哈希表数组</span></span><br><span class="line">    dictEntry **table;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 哈希表大小</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> size;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 哈希表大小掩码，用于计算索引值</span></span><br><span class="line">    <span class="comment">// 总是等于 size - 1</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> sizemask;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 该哈希表已有节点的数量</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> used;</span><br><span class="line"></span><br><span class="line">&#125; dictht;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>table</strong>：是一个数组，数组中的每一个元素均指向字典节点 dictEntry 结构体，每一个 dictEntry 均是一个键值对，Redis 采用拉链法来解决hash冲突，当多个元素hash值相同时，那么会形成一个链表结构存储。</li>
+<li><strong>size</strong>：表示当前哈希数组的大小。</li>
+<li><strong>sizemask</strong>：用来计算索引值，总是等于 size - 1。<code>idx = hash &amp; sizemask</code>  </li>
+<li><strong>used</strong>：用来表示当前哈希表中已有节点的个数。</li>
+</ul>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/Redis%E2%80%94%E2%80%94%E5%93%88%E5%B8%8C%E8%A1%A8%E7%BB%93%E6%9E%84%E5%9B%BE.png"></p>
+<h3 id="哈希表节点"><a href="#哈希表节点" class="headerlink" title="哈希表节点"></a>哈希表节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> &#123;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 键</span></span><br><span class="line">    <span class="keyword">void</span> *key;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 值</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="keyword">void</span> *val;</span><br><span class="line">        <span class="keyword">uint64_t</span> u64;</span><br><span class="line">        <span class="keyword">int64_t</span> s64;</span><br><span class="line">    &#125; v;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 指向下个哈希表节点，形成链表</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> *<span class="title">next</span>;</span></span><br><span class="line"></span><br><span class="line">&#125; dictEntry;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>key</strong>：用来表示哈希表节点中的键，可以是任意类型的。</li>
+<li><strong>next</strong>：用来指向下一个哈希表节点的指针，如果出现哈希冲突那么将会用拉链法解法。</li>
+<li><strong>value</strong>：节点中值，可以是任意类型，也可以是整数。</li>
+</ul>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/Redis%E2%80%94%E2%80%94%E5%93%88%E5%B8%8C%E8%A1%A8%28%E5%B8%A6%E6%9C%89%E8%8A%82%E7%82%B9%29%E7%BB%93%E6%9E%84%E5%9B%BE.png"></p>
+<h3 id="字典-1"><a href="#字典-1" class="headerlink" title="字典"></a>字典</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dict</span> &#123;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 类型特定函数</span></span><br><span class="line">    dictType *type;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 私有数据</span></span><br><span class="line">    <span class="keyword">void</span> *privdata;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 哈希表</span></span><br><span class="line">    dictht ht[<span class="number">2</span>];</span><br><span class="line"></span><br><span class="line">    <span class="comment">// rehash 索引</span></span><br><span class="line">    <span class="comment">// 当 rehash 不在进行时，值为 -1</span></span><br><span class="line">    <span class="keyword">int</span> rehashidx; <span class="comment">/* rehashing not in progress if rehashidx == -1 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 目前正在运行的安全迭代器的数量</span></span><br><span class="line">    <span class="keyword">int</span> iterators; <span class="comment">/* number of iterators currently running */</span></span><br><span class="line"></span><br><span class="line">&#125; dict;</span><br></pre></td></tr></table></figure>
+
+<p>&emsp;&emsp;哈希表由两个组成，<code>ht[0]</code> 作为平时增删改查操作的对象，而 <code>ht[1]</code> 作为扩容的时候选择，哈希表在扩容的时候采用了一种渐进式哈希扩容，不是一次性将所有键值对都移植到新的哈希表上，如果原有的键值对数量比较多，那么Redis将会被阻塞一段时间。<strong>rehash</strong>，表示当前正在进行的移植的数组索引，如果没有进行扩容操作，那么这个值为 -1。</p>
+<p>&emsp;&emsp;其中，dictType 指向的是一些操作字典的函数，结构体定义如下所示：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictType</span> &#123;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计算哈希值的函数</span></span><br><span class="line">    <span class="function"><span class="keyword">unsigned</span> <span class="title">int</span> <span class="params">(*hashFunction)</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *key)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 复制键的函数</span></span><br><span class="line">    <span class="keyword">void</span> *(*keyDup)(<span class="keyword">void</span> *privdata, <span class="keyword">const</span> <span class="keyword">void</span> *key);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 复制值的函数</span></span><br><span class="line">    <span class="keyword">void</span> *(*valDup)(<span class="keyword">void</span> *privdata, <span class="keyword">const</span> <span class="keyword">void</span> *obj);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对比键的函数</span></span><br><span class="line">    <span class="keyword">int</span> (*keyCompare)(<span class="keyword">void</span> *privdata, <span class="keyword">const</span> <span class="keyword">void</span> *key1, <span class="keyword">const</span> <span class="keyword">void</span> *key2);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 销毁键的函数</span></span><br><span class="line">    <span class="keyword">void</span> (*keyDestructor)(<span class="keyword">void</span> *privdata, <span class="keyword">void</span> *key);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 销毁值的函数</span></span><br><span class="line">    <span class="keyword">void</span> (*valDestructor)(<span class="keyword">void</span> *privdata, <span class="keyword">void</span> *obj);</span><br><span class="line"></span><br><span class="line">&#125; dictType;</span><br></pre></td></tr></table></figure>
+
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200716150523.png"></p>
+<h3 id="rehash"><a href="#rehash" class="headerlink" title="rehash"></a>rehash</h3><p>&emsp;&emsp;哈希表的收缩和扩展根据一个负载因子（loadfactor），当哈希表保存的键值对数量太多或者太少时，需要对哈希表进行扩展和收缩。</p>
+<h4 id="扩展-amp-收缩步骤"><a href="#扩展-amp-收缩步骤" class="headerlink" title="扩展&amp;收缩步骤"></a>扩展&amp;收缩步骤</h4><ol>
+<li>为 <code>ht[1]</code> 哈希表分配空间，这个哈希表的大小取决于要执行的操作，以及当前 <code>ht[0]</code> 中键值对的数量。<ol>
+<li>如果执行的扩展操作，那么 <code>ht[1]</code> 的大小为第一个大于等于 <code>ht[0].used * 2 的 2^n</code>。</li>
+<li>如果执行的是收缩操作，那么<code>ht[1]</code> 的大小为第一个小于等于 <code>ht[0].used 的 2^n</code>。</li>
+</ol>
+</li>
+<li>将保存在 <code>ht[0]</code> 上面的所有键值对进行 rehash 到 ht[1] 上面，rehash 指的是重新计算哈希值和索引值</li>
+<li>当所有 ht[0] 上面的元素都迁移到了 ht[1] 上之后，ht[0] 会被释放，然后 ht[1] 设置为 ht[0]，并在 ht[1] 新建一个空白哈希表，为了下一次的rehash做准备。</li>
+</ol>
+<h4 id="渐进式-rehash"><a href="#渐进式-rehash" class="headerlink" title="渐进式 rehash"></a>渐进式 rehash</h4><p>&emsp;&emsp;rehash过程，并不是一次性的，而是分多次、渐进式地完成的，这样做的好处有，当键值对个数比较多时，可以防止在rehash过程中，服务器处于阻塞状态。</p>
+<p>&emsp;&emsp;rehash过程如下：</p>
+<ol>
+<li>为ht[1]分配空间,让字典同时持有ht[0]和ht[1]两个哈希表。</li>
+<li>在字典中维持一个索引计数器变量 rehashidx,并将它的值设置为0,表示 rehash工作正式开始。</li>
+<li>在 rehash进行期间,每次对字典执行添加、删除、查找或者更新操作时,程序除了执行指定的操作以外,还会顺带将ht[0]哈希表在 rehashidx索引上的所有键值对rehash到ht[1],当 rehash工作完成之后,程序将 rehashidx属性的值增一。</li>
+<li>随着字典操作的不断执行,最终在某个时间点上,ht[01的所有键值对都会被hash至ht[1],这时程序将 rehashidx属性的值设为-1,表示 rehash操作已完成渐进式 rehash的好处在于它呆取分而治之的方式,将 rehash键值对所需的计算工作均摊到对字典的每个添加、删除、查找和更新操作上,从而避免了集中式 rehash而带来的庞大计算量。</li>
+</ol>
+<p>&emsp;&emsp;rehashidx，记录的是当前正在进行的rehash的索引数组下标值，如果没有进行的rehash操作，那么这个值为 -1。</p>
+<p>&emsp;&emsp;<strong>在rehash过程中，字典会同时使用 ht[0] 和 ht[1] 两个哈希表，所以在 rehash 期间内，字典的增、删、改、查操作会在两个哈希表上进行。</strong>在 rehash 过程中 ht[0] 这个哈希表不会在发生新增操作，这样就保证了 ht[0] 的键值对只会减少不会增加。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ul>
+<li>字典结构被广泛应用于Redis中的各种功能，包括数据库和哈希键。</li>
+<li>Redis中使用哈希表作为底层实现，每个字典带有两个哈希表，一个平时使用，一个仅在进行rehash使用。</li>
+<li>哈希表采用链地址法来解决键冲突，被分配到同一个索引上的多个键值对会连接成一个单向链表。</li>
+<li>在对哈希表进行扩展和收缩时，这个过程不是一次性进行完毕的，是分多次的，渐进式的完成rehash操作，当整个操作结束时，将 <code>ht[0]</code> 这个哈希表指向 <code>ht[1]</code>，最后释放掉 <code>ht[1]</code> 。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/">http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86/">底层原理</a><a class="post-meta__tags" href="/tags/hash%E5%AD%97%E5%85%B8/">hash字典</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/"><img class="prev-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">Redis中持久化方式对比RDB &amp; AOF</div></div></a></div><div class="next-post pull-right"><a href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">设计模式有那么难吗？——代理模式</div></div></a></div></nav><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">16</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">25</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">17</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AD%97%E5%85%B8"><span class="toc-number">1.</span> <span class="toc-text">字典</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AD%97%E5%85%B8%E7%9A%84%E5%86%85%E9%83%A8%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.</span> <span class="toc-text">字典的内部实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%93%88%E5%B8%8C%E8%A1%A8"><span class="toc-number">2.1.</span> <span class="toc-text">哈希表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%93%88%E5%B8%8C%E8%A1%A8%E8%8A%82%E7%82%B9"><span class="toc-number">2.2.</span> <span class="toc-text">哈希表节点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AD%97%E5%85%B8-1"><span class="toc-number">2.3.</span> <span class="toc-text">字典</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rehash"><span class="toc-number">2.4.</span> <span class="toc-text">rehash</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%89%A9%E5%B1%95-amp-%E6%94%B6%E7%BC%A9%E6%AD%A5%E9%AA%A4"><span class="toc-number">2.4.1.</span> <span class="toc-text">扩展&amp;收缩步骤</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%B8%90%E8%BF%9B%E5%BC%8F-rehash"><span class="toc-number">2.4.2.</span> <span class="toc-text">渐进式 rehash</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">3.</span> <span class="toc-text">总结</span></a></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/" title="IO模型介绍与比较"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="IO模型介绍与比较"/></a><div class="content"><a class="title" href="/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/" title="IO模型介绍与比较">IO模型介绍与比较</a><time datetime="2020-11-27T08:48:39.000Z" title="发表于 2020-11-27 16:48:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/" title="Redis中持久化方式对比RDB &amp; AOF"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis中持久化方式对比RDB &amp; AOF"/></a><div class="content"><a class="title" href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/" title="Redis中持久化方式对比RDB &amp; AOF">Redis中持久化方式对比RDB &amp; AOF</a><time datetime="2020-11-27T08:46:12.000Z" title="发表于 2020-11-27 16:46:12">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="Redis底层原理实现——字典原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis底层原理实现——字典原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="Redis底层原理实现——字典原理剖析">Redis底层原理实现——字典原理剖析</a><time datetime="2020-11-27T08:42:20.000Z" title="发表于 2020-11-27 16:42:20">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/'
+    this.page.identifier = '2020/11/27/Redis底层原理实现——字典原理剖析/'
+    this.page.title = 'Redis底层原理实现——字典原理剖析'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>

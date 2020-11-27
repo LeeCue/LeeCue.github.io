@@ -1,0 +1,280 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IO模型介绍与比较 | 北枫的Blog~</title><meta name="keywords" content="IO模型"><meta name="author" content="LeeCue,787504485@qq.com"><meta name="copyright" content="LeeCue"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><meta name="description" content="本文介绍四种常见的IO模型，并逐一去比较它们之间的异同，以及在使用上的性能的差异...">
+<meta property="og:type" content="article">
+<meta property="og:title" content="IO模型介绍与比较">
+<meta property="og:url" content="http://leecue.xyz/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/index.html">
+<meta property="og:site_name" content="北枫的Blog~">
+<meta property="og:description" content="本文介绍四种常见的IO模型，并逐一去比较它们之间的异同，以及在使用上的性能的差异...">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg">
+<meta property="article:published_time" content="2020-11-27T08:48:39.000Z">
+<meta property="article:modified_time" content="2020-11-27T08:51:16.279Z">
+<meta property="article:author" content="LeeCue">
+<meta property="article:tag" content="IO模型">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg"><link rel="shortcut icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/2%20%E5%A4%9A%E5%95%A6a%E6%A2%A6-01.ico"><link rel="canonical" href="http://leecue.xyz/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.css"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  ClickShowText: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  justifiedGallery: {
+    js: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/js/jquery.justifiedGallery.min.js',
+    css: 'https://cdn.jsdelivr.net/npm/justifiedGallery/dist/css/justifiedGallery.min.css'
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isanchor: false
+};
+
+var saveToLocal = {
+  set: function setWithExpiry(key, value, ttl) {
+    const now = new Date()
+    const expiryDay = ttl * 86400000
+    const item = {
+      value: value,
+      expiry: now.getTime() + expiryDay,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  },
+
+  get: function getWithExpiry(key) {
+    const itemStr = localStorage.getItem(key)
+
+    if (!itemStr) {
+      return undefined
+    }
+    const item = JSON.parse(itemStr)
+    const now = new Date()
+
+    if (now.getTime() > item.expiry) {
+      localStorage.removeItem(key)
+      return undefined
+    }
+    return item.value
+  }
+}</script><script id="config_change">var GLOBAL_CONFIG_SITE = { 
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2020-11-27 16:51:16'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(function () {  window.activateDarkMode = function () {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+    }
+  }
+  window.activateLightMode = function () {
+    document.documentElement.setAttribute('data-theme', 'light')
+   if (document.querySelector('meta[name="theme-color"]') !== null) {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+    }
+  }
+  const autoChangeMode = 'false'
+  const t = saveToLocal.get('theme')
+  if (autoChangeMode === '1') {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+    const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+    const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+    if (t === undefined) {
+      if (isLightMode) activateLightMode()
+      else if (isDarkMode) activateDarkMode()
+      else if (isNotSpecified || hasNoSupport) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isNight = hour <= 6 || hour >= 18
+        isNight ? activateDarkMode() : activateLightMode()
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addListener(function (e) {
+        if (saveToLocal.get('theme') === undefined) {
+          e.matches ? activateDarkMode() : activateLightMode()
+        }
+      })
+    } else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else if (autoChangeMode === '2') {
+    const now = new Date()
+    const hour = now.getHours()
+    const isNight = hour <= 6 || hour >= 18
+    if (t === undefined) isNight ? activateDarkMode() : activateLightMode()
+    else if (t === 'light') activateLightMode()
+    else activateDarkMode()
+  } else {
+    if (t === 'dark') activateDarkMode()
+    else if (t === 'light') activateLightMode()
+  }const asideStatus = saveToLocal.get('aside-status')
+if (asideStatus !== undefined) {
+   if (asideStatus === 'hide') {
+     document.documentElement.classList.add('hide-aside')
+   } else {
+     document.documentElement.classList.remove('hide-aside')
+   }
+}})()</script><link rel="stylesheet" href="/css/background.css"><link rel="stylesheet" href="/css/mouse.css"><link rel="stylesheet" href="/css/scrollbar.css"><link rel="stylesheet" href="/css/icon_1.css"><meta name="generator" content="Hexo 5.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="author-avatar"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data"><div class="data-item is-center"><div class="data-item-link"><a href="/archives/"><div class="headline">文章</div><div class="length-num">16</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/tags/"><div class="headline">标签</div><div class="length-num">25</div></a></div></div><div class="data-item is-center"><div class="data-item-link"><a href="/categories/"><div class="headline">分类</div><div class="length-num">17</div></a></div></div></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div></div></div><div id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg)"><nav id="nav"><span id="blog_name"><a id="site-name" href="/">北枫的Blog~</a></span><span id="menus"><div id="search_button"><a class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><i class="fa-fw iconfont icon-book"></i><span> 找文章</span><i class="fas fa-chevron-down expand"></i></a><ul class="menus_item_child"><li><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li><li><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/artitalk"><i class="fa-fw iconfont icon-comiisfashuoshuo"></i><span> 说说</span></a></div><div class="menus_item"><a class="site-page" href="/gossip"><i class="fa-fw iconfont icon-bangbangtanglollipop"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/love"><i class="fa-fw iconfont icon-love-b"></i><span> Love</span></a></div><div class="menus_item"><a class="site-page" href="/about"><i class="fa-fw iconfont icon-feiji"></i><span> 关于我</span></a></div><div class="menus_item"><a class="site-page" href="/books"><i class="fa-fw iconfont icon-tushu"></i><span> 木子的书屋</span></a></div></div><span class="close" id="toggle-menu"><a class="site-page"><i class="fas fa-bars fa-fw"></i></a></span></span></nav><div id="post-info"><h1 class="post-title">IO模型介绍与比较</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2020-11-27T08:48:39.000Z" title="发表于 2020-11-27 16:48:39">2020-11-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2020-11-27T08:51:16.279Z" title="更新于 2020-11-27 16:51:16">2020-11-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/">操作系统</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/IO%E7%AF%87/">IO篇</a></span></div><div class="meta-secondline"> <span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">字数总计:</span><span class="word-count">1.9k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>5分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"></span></span><span class="post-meta-separator">|</span><span class="post-meta-commentcount"></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="IO读写的基本原理"><a href="#IO读写的基本原理" class="headerlink" title="IO读写的基本原理"></a>IO读写的基本原理</h2><p>&emsp;&emsp;用户的IO调用，并不是直接操作的底层文件，而是通过内核空间来间接操作文件。也就是说，当使用read系统调用，并不是直接从物理设备读取数据到内存中，使用write系统调用，也并不是直接将数据写入到物理设备中。</p>
+<ul>
+<li>调用read系统调用，是将数据从内核缓存区读取到进程缓冲区中；</li>
+<li>调用write系统调用，是将数据从进程缓冲区写入到内核缓冲区中。</li>
+</ul>
+<p>&emsp;&emsp;如果是由进程直接操作外部设备读取或写入数据，那么当外部中断发生时，该进程需要被打断，保存进程当前状态，去读取相应的数据，当读取完之后，恢复进程的运行状态，十分损耗性能。这时，可以设立一个内核缓冲区，由内核来直接监视外部设备中断，用户进程只需要关注内核缓冲区，起到解耦作用，提升了性能。</p>
+<p>&emsp;&emsp;从数量中来看，在Linux中，内核只有一个缓冲区，而每一个进程都有自己的缓冲区。</p>
+<h3 id="IO读取实例"><a href="#IO读取实例" class="headerlink" title="IO读取实例"></a>IO读取实例</h3><p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200720135931.png"></p>
+<p>&emsp;&emsp;用户程序所使用的read&amp;write系统调用：</p>
+<ul>
+<li>read把数据从内核缓冲区中读取到进程缓冲区中</li>
+<li>write把数据从进程缓冲区中写入到进程缓冲区中</li>
+</ul>
+<hr>
+<h2 id="sync、fsync和fdatasync区别"><a href="#sync、fsync和fdatasync区别" class="headerlink" title="sync、fsync和fdatasync区别"></a>sync、fsync和fdatasync区别</h2><p>&emsp;&emsp;上述说到，用户实际上读取和写入的内核缓冲区，那么数据什么时候才能正确写入物理设备上呢，Linux提供了三个函数来强制将内核缓冲区中的数据更新到物理设备中。</p>
+<ul>
+<li><strong>sync</strong>函数：将修改过的块缓冲排入一个写队列中，然后就立即返回，并不等待实际写入磁盘。</li>
+<li><strong>fsync</strong>函数：指定某一个文件描述符（Linux中用fd表示一个文件），等待数据写入到磁盘中才返回。</li>
+<li><strong>fdatasync</strong>函数：和fsync类似，但是fsync会更新文件的属性和数据，但是fdatasync只会影响到文件的数据。</li>
+</ul>
+<hr>
+<h2 id="概念区分"><a href="#概念区分" class="headerlink" title="概念区分"></a>概念区分</h2><p>&emsp;&emsp;阻塞和非阻塞：</p>
+<ul>
+<li><strong>阻塞</strong>，当用户进程发起IO系统调用时，需要等待内核IO完成才能返回，否则会一直阻塞等待。</li>
+<li><strong>非阻塞</strong>，当用户进程发起IO系统调用时，不需要等待内核IO完成，会立即返回，用户进程可以继续执行剩下的事情。</li>
+</ul>
+<p>&emsp;&emsp;同步与异步：</p>
+<ul>
+<li><strong>同步</strong>：指的是用户进程主动发起IO系统调用，内核被动接受。</li>
+<li><strong>异步</strong>：指的是内核主动发起IO请求，用户进程被动接受。</li>
+</ul>
+<hr>
+<h2 id="四种IO模型比较"><a href="#四种IO模型比较" class="headerlink" title="四种IO模型比较"></a>四种IO模型比较</h2><h3 id="同步阻塞IO（Blocking-IO）"><a href="#同步阻塞IO（Blocking-IO）" class="headerlink" title="同步阻塞IO（Blocking IO）"></a>同步阻塞IO（Blocking IO）</h3><p>&emsp;&emsp;在阻塞式IO中，用户进程发起IO请求，直到内核IO完成时才返回，整个期间Java程序是阻塞的。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200720142133.png"></p>
+<p>&emsp;&emsp;例如，Java中发起一个socket的read读操作系统调用时，流程如下：</p>
+<ol>
+<li>Java程序调用read操作，整个Java程序进入阻塞状态。</li>
+<li>当系统内核收到read系统调用时，等待数据（此时数据可能并没有传输过来）。</li>
+<li>此时，假如数据已经传输完毕，内核会将完整数据复制到用户缓冲区中。</li>
+<li>内核返回后，用户进程解除阻塞状态，继续运行。</li>
+</ol>
+<h3 id="同步非阻塞NIO（None-Blocking-IO）"><a href="#同步非阻塞NIO（None-Blocking-IO）" class="headerlink" title="同步非阻塞NIO（None-Blocking IO）"></a>同步非阻塞NIO（None-Blocking IO）</h3><p>&emsp;&emsp;在NIO中，应用程序进行IO系统调用时，会出现以下两种情况：</p>
+<ol>
+<li>此时内核缓冲区没有数据，那么会直接返回，用户程序不会阻塞，可以继续执行其他事情；</li>
+<li>此时内核缓冲区有数据，那么用户程序会进入阻塞状态，直到整个IO操作完成时，内核调用返回后，才会继续运行。</li>
+</ol>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200720143128.png"></p>
+<p>&emsp;&emsp;<strong>在Java NIO中，并不是使用的是非阻塞IO，而是New IO，内部使用了IO多路复用模型。</strong></p>
+<h3 id="IO多路复用"><a href="#IO多路复用" class="headerlink" title="IO多路复用"></a>IO多路复用</h3><p>&emsp;&emsp;在IO多路复用模型，引入了一种新的系统调用，在Linux中对应的是 select、poll、epoll（Linux2.6内核提出），通过该系统调用，可以使一个进程监听多个文件描述符，一旦一个文件描述符就绪（一般是内核缓冲区可读/可写）时，内核能够将就绪的状态返回给用户程序，用户程序根据就绪状态，可以进行相应的IO系统调用。</p>
+<p>&emsp;&emsp;使用IO多路复用，可以使一个进程监听上千个socket连接，当某个或者某些socket连接IO就绪时，就返回对应的可以执行socket连接。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200720144450.png"></p>
+<p>&emsp;&emsp;IO多路复用的优点为：一个线程可以维护上千个连接，不断地去轮询连接状态。系统不必创建大量的线程，减少了系统开销。缺点为：无法在根本上解决阻塞问题，因为select和read调用，需要系统调用本身去负责读写，整个过程依然是阻塞的。</p>
+<p>&emsp;&emsp;IO多路复用的例子，发起一个read调用读操作如下：</p>
+<ol>
+<li>选择器注册，select、poll每次都需要注册整个的文件符描述结构；epoll只需要住一个epoll结构体对象，每次epoll_ctl添加成员即可（注册响应的监听事件）。</li>
+<li>就绪状态的轮询，通过选择器的查询方法，将已经就绪的连接放入一个socket列表，通过查询的系统调用就会返回一个就绪的socket列表。</li>
+</ol>
+<p>&emsp;&emsp;当用户进行了select查询方法，那么整个进程将会被阻塞。</p>
+<ol start="3">
+<li>当用户获得了就绪状态的列表之后，根据其中的socket连接，发起相应的read调用，整个线程会被阻塞，直到内核缓冲区数据复制到用户进程缓冲区中。</li>
+<li>复制完成之后，系统调用返回，整个进程恢复运行。</li>
+</ol>
+<h3 id="异步IO"><a href="#异步IO" class="headerlink" title="异步IO"></a>异步IO</h3><p>&emsp;&emsp;AIO：异步IO模型，用户县城发起IO系统调用，向内核注册一个IO操作。内核在整个IO操作中，不需要阻塞用户线程（包括等待数据，复制数据到用户缓冲区中），在整个IO操作完成之后，通知用户线程，用户继续执行后续的操作。</p>
+<p><img src= "/img/loading.gif" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/blog_img/20200720150017.png"></p>
+<p>&emsp;&emsp;完成通知，内核可以返回一个Singal（信号），或者调用用户进程注册的回调函数。</p>
+<p>&emsp;&emsp;Netty底层也是使用的是IO多路复用，而不是AIO。</p>
+<hr>
+<h2 id="Linux下配置并发连接数"><a href="#Linux下配置并发连接数" class="headerlink" title="Linux下配置并发连接数"></a>Linux下配置并发连接数</h2><p>&emsp;&emsp;在Linux中单个进程可以打开的文件描述符只有1024个，如果超出，则会报出 <code>can&#39;t open so many files</code>，可以通过以下几种方式解决。</p>
+<ul>
+<li>使用ulimit命令修改，使用这个命令有一定缺陷，当shell关闭时，那么这个配置将失效。</li>
+<li>修改/etc/rc.local文件，添加 <code>ulimit -SHn 1000000</code><ul>
+<li>-S 为硬性限制，表示一个进程最大可以为100万</li>
+<li>-H 为软性限制，当超出100万时会发出一个系统警告</li>
+</ul>
+</li>
+<li>修改/etc/security/limits.conf，添加 <code>soft nofile 1000000</code> 和 <code>hard nofile 1000000</code></li>
+</ul>
+<p>&emsp;&emsp;使用ES或者Netty时，必须要修改该参数的配置。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:787504485@qq.com">LeeCue</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="http://leecue.xyz/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/">http://leecue.xyz/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://leecue.xyz" target="_blank">北枫的Blog~</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/IO%E6%A8%A1%E5%9E%8B/">IO模型</a></div><div class="post_share"><div class="social-share" data-image="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="next-post pull-full"><a href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/"><img class="next-cover" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="onerror=null;src='/img/404.jpg'"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">Redis中持久化方式对比RDB &amp; AOF</div></div></a></div></nav><hr/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div id="comment-switch"><span class="first-comment">Twikoo</span><span class="switch-btn"></span><span class="second-comment">Disqus</span></div></div><div class="comment-wrap"><div><div id="twikoo"></div></div><div><div id="disqus_thread"></div></div></div></div></div><div class="aside_content" id="aside_content"><div class="card-widget card-info"><div class="card-content"><div class="card-info-avatar is-center"><img class="avatar-img" data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/1606175654709.jpeg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/><div class="author-info__name">LeeCue</div><div class="author-info__description">一个收藏回忆和分享技术的地方~</div></div><div class="card-info-data"><div class="card-info-data-item is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">16</div></a></div><div class="card-info-data-item is-center"><a href="/tags/"><div class="headline">标签</div><div class="length-num">25</div></a></div><div class="card-info-data-item is-center"><a href="/categories/"><div class="headline">分类</div><div class="length-num">17</div></a></div></div><a class="button--animated" id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LeeCue"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/weixin.png" target="_blank" title="微信"><i class="fab fa-weixin"></i></a><a class="social-icon" href="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/qq.jpg" target="_blank" title="QQ"><i class="fab fa-qq"></i></a><a class="social-icon" href="https://github.com/LeeCue" target="_blank" title="Github"><i class="fab fa-github"></i></a></div></div></div><div class="card-widget card-announcement"><div class="card-content"><div class="item-headline"><i class="fas fa-bullhorn card-announcement-animation"></i><span>公告</span></div><div class="announcement_content">因云服务器到期，搭建新博客系统，近期会将文章进行搬运！</div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="card-content"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#IO%E8%AF%BB%E5%86%99%E7%9A%84%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86"><span class="toc-number">1.</span> <span class="toc-text">IO读写的基本原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#IO%E8%AF%BB%E5%8F%96%E5%AE%9E%E4%BE%8B"><span class="toc-number">1.1.</span> <span class="toc-text">IO读取实例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#sync%E3%80%81fsync%E5%92%8Cfdatasync%E5%8C%BA%E5%88%AB"><span class="toc-number">2.</span> <span class="toc-text">sync、fsync和fdatasync区别</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A6%82%E5%BF%B5%E5%8C%BA%E5%88%86"><span class="toc-number">3.</span> <span class="toc-text">概念区分</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E7%A7%8DIO%E6%A8%A1%E5%9E%8B%E6%AF%94%E8%BE%83"><span class="toc-number">4.</span> <span class="toc-text">四种IO模型比较</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%8C%E6%AD%A5%E9%98%BB%E5%A1%9EIO%EF%BC%88Blocking-IO%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">同步阻塞IO（Blocking IO）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%8C%E6%AD%A5%E9%9D%9E%E9%98%BB%E5%A1%9ENIO%EF%BC%88None-Blocking-IO%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">同步非阻塞NIO（None-Blocking IO）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#IO%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8"><span class="toc-number">4.3.</span> <span class="toc-text">IO多路复用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%82%E6%AD%A5IO"><span class="toc-number">4.4.</span> <span class="toc-text">异步IO</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Linux%E4%B8%8B%E9%85%8D%E7%BD%AE%E5%B9%B6%E5%8F%91%E8%BF%9E%E6%8E%A5%E6%95%B0"><span class="toc-number">5.</span> <span class="toc-text">Linux下配置并发连接数</span></a></li></ol></div></div></div><div class="card-widget card-recent-post"><div class="card-content"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/" title="IO模型介绍与比较"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="IO模型介绍与比较"/></a><div class="content"><a class="title" href="/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/" title="IO模型介绍与比较">IO模型介绍与比较</a><time datetime="2020-11-27T08:48:39.000Z" title="发表于 2020-11-27 16:48:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/" title="Redis中持久化方式对比RDB &amp; AOF"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis中持久化方式对比RDB &amp; AOF"/></a><div class="content"><a class="title" href="/2020/11/27/Redis%E4%B8%AD%E6%8C%81%E4%B9%85%E5%8C%96%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94RDB-AOF/" title="Redis中持久化方式对比RDB &amp; AOF">Redis中持久化方式对比RDB &amp; AOF</a><time datetime="2020-11-27T08:46:12.000Z" title="发表于 2020-11-27 16:46:12">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="Redis底层原理实现——字典原理剖析"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/redis-1.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis底层原理实现——字典原理剖析"/></a><div class="content"><a class="title" href="/2020/11/27/Redis%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%E5%AE%9E%E7%8E%B0%E2%80%94%E2%80%94%E5%AD%97%E5%85%B8%E5%8E%9F%E7%90%86%E5%89%96%E6%9E%90/" title="Redis底层原理实现——字典原理剖析">Redis底层原理实现——字典原理剖析</a><time datetime="2020-11-27T08:42:20.000Z" title="发表于 2020-11-27 16:42:20">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——代理模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E4%BB%A3%E7%90%86%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——代理模式">设计模式有那么难吗？——代理模式</a><time datetime="2020-11-27T02:40:39.000Z" title="发表于 2020-11-27 10:40:39">2020-11-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式"><img data-lazy-src="https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/v2-4b5e77109271085b3e89cab757e4c14e_1440w.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="设计模式有那么难吗？——观察者模式"/></a><div class="content"><a class="title" href="/2020/11/27/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E6%9C%89%E9%82%A3%E4%B9%88%E9%9A%BE%E5%90%97%EF%BC%9F%E2%80%94%E2%80%94%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F/" title="设计模式有那么难吗？——观察者模式">设计模式有那么难吗？——观察者模式</a><time datetime="2020-11-27T02:40:26.000Z" title="发表于 2020-11-27 10:40:26">2020-11-27</time></div></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(https://cloud-img-1301075855.cos.ap-chengdu.myqcloud.com/%20study_img/9D48B6C7CB470CE9B0E0E5A90F1C1317.jpg)"><div id="footer-wrap"><div class="copyright">&copy;2020 By LeeCue</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div><div class="icp"><a><img class="icp-icon" src="/img/icp.png" alt="ICP"/><span>陕ICP备20001813号-1</span></a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="直达评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><i class="fas fa-arrow-up"></i></button></div></div><div id="local-search"><div class="search-dialog"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div></div><hr/><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fas fa-times"></i></span></div><div id="search-mask"></div></div><div><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><script src="/js/search/local-search.js"></script><div class="js-pjax"><script>function loadTwikoo () {
+  function init () {
+    twikoo.init({ 
+      envId: 'comment-3gfiakcr785d9741' 
+    })
+  }
+
+  if (typeof twikoo.init === 'function') {
+    init()
+  } else {
+    $.getScript('https://cdn.jsdelivr.net/npm/twikoo/dist/twikoo.all.min.js', init)
+  }
+}
+
+if ('Twikoo' === 'Twikoo' || !false) {
+  if (false) btf.loadComment(document.getElementById('twikoo'), loadTwikoo)
+  else loadTwikoo()
+} else {
+  function loadOtherComment () {
+    loadTwikoo()
+  }
+}</script><script>function loadDisqus () {
+  var disqus_config = function () {
+    this.page.url = 'http://leecue.xyz/2020/11/27/IO%E6%A8%A1%E5%9E%8B%E4%BB%8B%E7%BB%8D%E4%B8%8E%E6%AF%94%E8%BE%83/'
+    this.page.identifier = '2020/11/27/IO模型介绍与比较/'
+    this.page.title = 'IO模型介绍与比较'
+  };
+
+  window.disqusReset = () => {
+    DISQUS.reset({
+      reload: true,
+      config: disqus_config
+    })
+  }
+
+  if (window.DISQUS) disqusReset()
+  else {
+    (function() { 
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leecue.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  }
+}
+
+if ('Twikoo' === 'Disqus' || !false) {
+  if (false) btf.loadComment(document.getElementById('disqus_thread'), loadDisqus)
+  else loadDisqus()
+} else {
+  function loadOtherComment () {
+    loadDisqus()
+  }
+}
+</script><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></div></body></html>
